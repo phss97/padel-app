@@ -27,7 +27,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   setIsLoading: (isLoading) => set({ isLoading }),
 
   initialize: async () => {
-    // Get current session
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -39,9 +38,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isInitialized: true });
     }
 
-    // Listen for auth changes
     supabase.auth.onAuthStateChange((_event, session) => {
       set({ session, user: session?.user ?? null });
+      if (_event === "SIGNED_IN") {
+        const redirect = localStorage.getItem("auth_redirect");
+        if (redirect) {
+          localStorage.removeItem("auth_redirect");
+          window.location.href = redirect;
+        }
+      }
     });
   },
 
