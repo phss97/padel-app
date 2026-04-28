@@ -34,16 +34,29 @@ export default function GroupDetail() {
   const [showCreateMatchModal, setShowCreateMatchModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const { data: group } = useQuery<Group & { venues: Venue }>({
+  const { data: group } = useQuery<Group>({
     queryKey: ["group", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("groups")
-        .select("*, venues(*)")
+        .select("*")
         .eq("id", id)
         .single();
       if (error) throw error;
       return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: venues } = useQuery<Venue[]>({
+    queryKey: ["group-venues", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("venues")
+        .select("*")
+        .eq("group_id", id);
+      if (error) throw error;
+      return data || [];
     },
     enabled: !!id,
   });
@@ -186,7 +199,8 @@ export default function GroupDetail() {
             <div className="flex items-center gap-1 text-sm text-gray-500">
               <MapPin className="w-3.5 h-3.5" />
               <span className="truncate">
-                {group?.venues?.name || t("group.noDefaultVenue")}
+                {venues?.find((v) => v.id === group?.default_venue_id)?.name ||
+                  t("group.noDefaultVenue")}
               </span>
             </div>
           </div>
