@@ -12,14 +12,16 @@ import {
   MapPin,
   Check,
   Users,
+  AlertTriangle,
 } from "lucide-react";
 import { calculateMaxPlayers } from "../lib/matchUtils";
-import type { Venue, Group } from "../types";
+import { formatMatchDate, formatMatchTime } from "../lib/dateUtils";
+import type { Venue, Group, Match } from "../types";
 
 export default function CreateMatch() {
   const { id: groupId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
 
@@ -30,6 +32,9 @@ export default function CreateMatch() {
   const [courtCost, setCourtCost] = useState("");
   const [joinMatch, setJoinMatch] = useState(true);
   const [error, setError] = useState("");
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [pendingMatch, setPendingMatch] = useState<{ startDateTime: Date; endDateTime: Date } | null>(null);
+  const [adjacentMatch, setAdjacentMatch] = useState<Match | null>(null);
 
   const { data: venues } = useQuery<Venue[]>({
     queryKey: ["group-venues", groupId],
@@ -64,16 +69,24 @@ export default function CreateMatch() {
     }
   }, [group]);
 
-  const createMatch = useMutation({
-    mutationFn: async () => {
-      if (!groupId || !user) throw new Error("Missing group or user");
-      if (!startDate || !startTime) throw new Error("Missing date or time");
-      if (!venueId) throw new Error("Select a venue");
+  const checkAdjacent = async (startDateTime: Date, endDateTime: Date) => {
+    if (!venueId) return null;
+    const { data, error: qError } = await supabase
+      .from("matches")
+      .select("*")
+      .eq("venue_id", venueId)
+      .eq("status", "scheduled")
+      .or(`end_time.eq.${startDateTime.toISOString()},start_time.eq.${endDateTime.toISOString()}`)
+      .limit(1)
+      .single();
+    if (qError) return null;
+    return data as Match;
+  };
 
-      const startDateTime = new Date(`${startDate}T${startTime}`);
-      const endDateTime = new Date(
-        startDateTime.getTime() + durationHours * 60 * 60 * 1000
-      );
+  const createMatch = useMutation({
+    mutationFn: async ({ startDateTime, endDateTime }: { startDateTime: Date; endDateTime: Date }) => {
+      if (!groupId || !user) throw new Error("Missing group or user");
+      if (!venueId) throw new Error("Select a venue");
 
       const maxPlayers = calculateMaxPlayers(
         startDateTime,
@@ -115,10 +128,39 @@ export default function CreateMatch() {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    createMatch.mutate();
+    if (!groupId || !user) return;
+    if (!startDate || !startTime) {
+      setError(t("match.missingDateTime", "Informe data e horário"));
+      return;
+    }
+    if (!venueId) {
+      setError(t("match.missingVenue", "Selecione uma quadra"));
+      return;
+    }
+
+    const startDateTime = new Date(`${startDate}T${startTime}`);
+    const endDateTime = new Date(
+      startDateTime.getTime() + durationHours * 60 * 60 * 1000
+    );
+
+    const adjacent = await checkAdjacent(startDateTime, endDateTime);
+    if (adjacent) {
+      setPendingMatch({ startDateTime, endDateTime });
+      setAdjacentMatch(adjacent);
+      setShowMergeModal(true);
+      return;
+    }
+
+    createMatch.mutate({ startDateTime, endDateTime });
+  };
+
+  const handleConfirmMerge = () => {
+    if (!pendingMatch) return;
+    createMatch.mutate(pendingMatch);
+    setShowMergeModal(false);
   };
 
   if (!groupId) return null;
@@ -303,6 +345,50 @@ export default function CreateMatch() {
             : t("match.create")}
         </button>
       </form>
+
+      {/* Merge Confirmation Modal */}
+      {showMergeModal && adjacentMatch && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center gap-3 text-amber-500">
+              <AlertTriangle className="w-6 h-6" />
+              <h2 className="text-lg font-semibold text-foreground">
+                {t("match.mergeTitle", "Partida adjacente encontrada")}
+              </h2>
+            </div>
+            <p className="text-muted-foreground text-sm">
+              {t("match.mergeDescription", "Já existe uma partida no mesmo horário que será mesclada com esta.")}
+            </p>
+            <div className="bg-muted rounded-xl p-4 space-y-2 text-sm">
+              <p className="text-muted-foreground">{t("match.existingMatch", "Partida existente:")}</p>
+              <p className="font-medium text-foreground">
+                {formatMatchDate(adjacentMatch.start_time, i18n.language)} ·{" "}
+                {formatMatchTime(adjacentMatch.start_time, i18n.language)} -{" "}
+                {formatMatchTime(adjacentMatch.end_time, i18n.language)}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowMergeModal(false);
+                  setPendingMatch(null);
+                  setAdjacentMatch(null);
+                }}
+                className="flex-1 py-3 bg-muted text-foreground rounded-xl font-medium hover:bg-muted/80 transition-colors"
+              >
+                {t("app.cancel")}
+              </button>
+              <button
+                onClick={handleConfirmMerge}
+                disabled={createMatch.isPending}
+                className="flex-1 py-3 bg-primary text-white rounded-xl font-medium disabled:opacity-50 hover:bg-primary/90 transition-colors"
+              >
+                {createMatch.isPending ? t("app.loading") : t("match.mergeConfirm", "Mesclar e criar")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
