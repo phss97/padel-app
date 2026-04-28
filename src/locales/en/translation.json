@@ -147,6 +147,14 @@
     "transferBeforeForfeit": "You are the organizer. Before forfeiting, choose a new organizer:",
     "delete": "Delete match",
     "deleteConfirm": "Are you sure? This action cannot be undone.",
+    "editMatch": "Edit Match",
+    "endDate": "End date",
+    "endTime": "End time",
+    "maxPlayers": "Max players",
+    "kickPlayers": "Kick Players",
+    "kickPrompt": "Select players to remove",
+    "ownerKickTransfer": "You are the organizer. If you remove yourself, ownership will transfer to the remaining player.",
+    "kickConfirm": "Confirm",
     "noMatches": "You are not participating in any match"
   },
   "profile": {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   DollarSign,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import type { Match, Profile, Group, MatchPayment } from "../types";
 
@@ -50,6 +51,19 @@ export default function MatchDetail() {
   // Forfeit transfer modal
   const [showForfeitModal, setShowForfeitModal] = useState(false);
 
+  // Edit match modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editStartTime, setEditStartTime] = useState("");
+  const [editEndDate, setEditEndDate] = useState("");
+  const [editEndTime, setEditEndTime] = useState("");
+  const [editMaxPlayers, setEditMaxPlayers] = useState(4);
+
+  // Kick modal
+  const [showKickModal, setShowKickModal] = useState(false);
+  const [playersToKick, setPlayersToKick] = useState<Set<string>>(new Set());
+  const [isKicking, setIsKicking] = useState(false);
+
   const { data: match } = useQuery<Match & { group: Group; venue: { name: string } }>({
     queryKey: ["match", matchId],
     queryFn: async () => {
@@ -79,6 +93,18 @@ export default function MatchDetail() {
     },
     enabled: !!matchId,
   });
+
+  useEffect(() => {
+    if (match) {
+      const start = new Date(match.start_time);
+      const end = new Date(match.end_time);
+      setEditStartDate(start.toISOString().split("T")[0]);
+      setEditStartTime(start.toTimeString().slice(0, 5));
+      setEditEndDate(end.toISOString().split("T")[0]);
+      setEditEndTime(end.toTimeString().slice(0, 5));
+      setEditMaxPlayers(match.max_players);
+    }
+  }, [match]);
 
   const { data: payments } = useQuery<MatchPayment[]>({
     queryKey: ["match-payments", matchId],
@@ -209,6 +235,32 @@ export default function MatchDetail() {
     onError: (err: Error) => setError(err.message),
   });
 
+  const updateMatchMutation = useMutation({
+    mutationFn: async () => {
+      if (!matchId || !match) throw new Error("No match");
+      const start = new Date(`${editStartDate}T${editStartTime}`);
+      const end = new Date(`${editEndDate}T${editEndTime}`);
+      if (end <= start) throw new Error("End time must be after start time");
+
+      const { error } = await supabase
+        .from("matches")
+        .update({
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          max_players: editMaxPlayers,
+        })
+        .eq("id", matchId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["group-matches", match?.group_id] });
+      setShowEditModal(false);
+      setError("");
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
   const togglePaymentMutation = useMutation({
     mutationFn: async ({
       userId,
@@ -245,6 +297,94 @@ export default function MatchDetail() {
     },
     onError: (err: Error) => setError(err.message),
   });
+
+  const handleUpdateMatch = () => {
+    const newMax = editMaxPlayers;
+    const confirmedCount = confirmedPlayers.length;
+    if (newMax < confirmedCount) {
+      setPlayersToKick(new Set());
+      setShowKickModal(true);
+    } else {
+      updateMatchMutation.mutate();
+    }
+  };
+
+  const handleKickConfirm = async () => {
+    if (!matchId || !match) return;
+    setIsKicking(true);
+    try {
+      const userIdsToKick = Array.from(playersToKick);
+      const remainingPlayers = confirmedPlayers.filter(
+        (p) => !userIdsToKick.includes(p.user_id)
+      );
+
+      // Owner kicks himself and no one remains -> delete match
+      if (
+        isOwner &&
+        userIdsToKick.includes(user?.id || "") &&
+        remainingPlayers.length === 0
+      ) {
+        const { error } = await supabase
+          .from("matches")
+          .delete()
+          .eq("id", matchId);
+        if (error) throw error;
+        queryClient.invalidateQueries({
+          queryKey: ["group-matches", match.group_id],
+        });
+        navigate(`/groups/${match.group_id}`);
+        return;
+      }
+
+      // Transfer ownership if owner kicks himself
+      if (isOwner && userIdsToKick.includes(user?.id || "")) {
+        const { error } = await supabase
+          .from("matches")
+          .update({ created_by: remainingPlayers[0].user_id })
+          .eq("id", matchId);
+        if (error) throw error;
+      }
+
+      // Cancel kicked players
+      for (const userId of userIdsToKick) {
+        const { error } = await supabase
+          .from("match_players")
+          .update({ status: "cancelled" })
+          .eq("match_id", matchId)
+          .eq("user_id", userId);
+        if (error) throw error;
+      }
+
+      // Update match
+      const start = new Date(`${editStartDate}T${editStartTime}`);
+      const end = new Date(`${editEndDate}T${editEndTime}`);
+      if (end <= start) throw new Error("End time must be after start time");
+
+      const { error } = await supabase
+        .from("matches")
+        .update({
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          max_players: editMaxPlayers,
+        })
+        .eq("id", matchId);
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["match-players", matchId] });
+      queryClient.invalidateQueries({
+        queryKey: ["group-matches", match.group_id],
+      });
+      setShowKickModal(false);
+      setShowEditModal(false);
+      setPlayersToKick(new Set());
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setIsKicking(false);
+    }
+  };
 
   const handleForfeit = () => {
     if (isOwner && confirmedPlayers.length > 1) {
@@ -294,6 +434,12 @@ export default function MatchDetail() {
           <div className="flex items-center gap-1">
             {isOwner && (
               <>
+                <button
+                  onClick={() => setShowEditModal(true)}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <Pencil className="w-5 h-5 text-gray-600" />
+                </button>
                 <button
                   onClick={() => setShowTransferModal(true)}
                   className="p-2 hover:bg-gray-100 rounded-lg"
@@ -766,6 +912,181 @@ export default function MatchDetail() {
                 {transferOwnershipMutation.isPending
                   ? t("app.loading")
                   : t("match.forfeit")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Match Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {t("match.editMatch", "Editar Partida")}
+            </h2>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    {t("match.date")}
+                  </label>
+                  <input
+                    type="date"
+                    value={editStartDate}
+                    onChange={(e) => setEditStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    {t("match.time")}
+                  </label>
+                  <input
+                    type="time"
+                    value={editStartTime}
+                    onChange={(e) => setEditStartTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    {t("match.endDate", "End date")}
+                  </label>
+                  <input
+                    type="date"
+                    value={editEndDate}
+                    onChange={(e) => setEditEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    {t("match.endTime", "End time")}
+                  </label>
+                  <input
+                    type="time"
+                    value={editEndTime}
+                    onChange={(e) => setEditEndTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  {t("match.maxPlayers", "Máx. jogadores")}
+                </label>
+                <input
+                  type="number"
+                  min={2}
+                  max={20}
+                  value={editMaxPlayers}
+                  onChange={(e) => setEditMaxPlayers(parseInt(e.target.value) || 4)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+              >
+                {t("app.cancel")}
+              </button>
+              <button
+                onClick={handleUpdateMatch}
+                disabled={updateMatchMutation.isPending}
+                className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-medium disabled:opacity-50"
+              >
+                {updateMatchMutation.isPending
+                  ? t("app.loading")
+                  : t("app.save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Kick Players Modal */}
+      {showKickModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {t("match.kickPlayers", "Remover Jogadores")}
+            </h2>
+            <p className="text-sm text-gray-500">
+              {t("match.kickPrompt", "Select players to remove")} (
+              {confirmedPlayers.length - editMaxPlayers})
+            </p>
+            {isOwner && (
+              <p className="text-xs text-amber-600">
+                {t(
+                  "match.ownerKickTransfer",
+                  "Você é o organizador. Se se remover, a organização será transferida para o jogador restante."
+                )}
+              </p>
+            )}
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {confirmedPlayers.map((player) => (
+                <label
+                  key={player.id}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                    playersToKick.has(player.user_id)
+                      ? "border-red-500 bg-red-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={playersToKick.has(player.user_id)}
+                    onChange={(e) => {
+                      const next = new Set(playersToKick);
+                      if (e.target.checked) {
+                        next.add(player.user_id);
+                      } else {
+                        next.delete(player.user_id);
+                      }
+                      setPlayersToKick(next);
+                    }}
+                    className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
+                  />
+                  <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                    <Users className="w-5 h-5 text-primary-600" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-medium text-gray-900">
+                      {player.profile.name || player.profile.id}
+                    </p>
+                    {player.user_id === match.created_by && (
+                      <p className="text-xs text-primary-600 font-medium">
+                        {t("match.owner")}
+                      </p>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowKickModal(false)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+              >
+                {t("app.cancel")}
+              </button>
+              <button
+                onClick={handleKickConfirm}
+                disabled={
+                  isKicking ||
+                  playersToKick.size !==
+                    confirmedPlayers.length - editMaxPlayers
+                }
+                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium disabled:opacity-50"
+              >
+                {isKicking
+                  ? t("app.loading")
+                  : t("match.kickConfirm", "Confirmar")}
               </button>
             </div>
           </div>

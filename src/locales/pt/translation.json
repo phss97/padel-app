@@ -147,6 +147,14 @@
     "transferBeforeForfeit": "Você é o organizador. Antes de desistir, escolha um novo organizador:",
     "delete": "Excluir partida",
     "deleteConfirm": "Tem certeza? Esta ação não pode ser desfeita.",
+    "editMatch": "Editar Partida",
+    "endDate": "Data de término",
+    "endTime": "Horário de término",
+    "maxPlayers": "Máx. jogadores",
+    "kickPlayers": "Remover Jogadores",
+    "kickPrompt": "Selecione jogadores para remover",
+    "ownerKickTransfer": "Você é o organizador. Se se remover, a organização será transferida para o jogador restante.",
+    "kickConfirm": "Confirmar",
     "noMatches": "Você não está participando de nenhuma partida"
   },
   "profile": {
