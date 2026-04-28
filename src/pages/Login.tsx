@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../stores/authStore";
 import { LogIn, Mail, Globe, Lock, KeyRound } from "lucide-react";
 
-type AuthMode = "magic" | "signin" | "signup";
+type AuthMode = "magic" | "signin" | "signup" | "forgot";
 
 type MessageType = "info" | "success" | "error";
 
@@ -15,7 +15,7 @@ const modeTabs: { key: AuthMode; labelKey: string; fallback: string }[] = [
 
 const Login: FC = () => {
   const { t, i18n } = useTranslation();
-  const { signInWithEmail, signUpWithEmail, signInWithPassword, signInWithGoogle, isLoading } =
+  const { signInWithEmail, signUpWithEmail, signInWithPassword, signInWithGoogle, resetPassword, isLoading } =
     useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -68,6 +68,19 @@ const Login: FC = () => {
       setAuthMode("signin");
       setPassword("");
       setConfirmPassword("");
+    }
+  };
+
+  const handleResetPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setMessage("");
+    const { error } = await resetPassword(email);
+    if (error) {
+      setMessageType("error");
+      setMessage(error.message);
+    } else {
+      setMessageType("success");
+      setMessage(t("auth.resetSent", "E-mail de redefinição enviado! Verifique sua caixa de entrada."));
     }
   };
 
@@ -201,15 +214,24 @@ const Login: FC = () => {
                   : t(authMode === "signin" ? "auth.signIn" : "auth.signUp", authMode === "signin" ? "Entrar" : "Criar conta")}
               </button>
 
-              <div className="text-center">
+              <div className="text-center space-y-2">
                 {authMode === "signin" ? (
-                  <button
-                    type="button"
-                    onClick={() => switchMode("signup")}
-                    className="text-sm text-primary hover:text-primary/90 font-medium"
-                  >
-                    {t("auth.noAccount", "Não tem conta? Cadastre-se")}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => switchMode("forgot")}
+                      className="text-sm text-muted-foreground hover:text-foreground font-medium block mx-auto"
+                    >
+                      {t("auth.forgotPassword", "Esqueceu a senha?")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => switchMode("signup")}
+                      className="text-sm text-primary hover:text-primary/90 font-medium"
+                    >
+                      {t("auth.noAccount", "Não tem conta? Cadastre-se")}
+                    </button>
+                  </>
                 ) : (
                   <button
                     type="button"
@@ -219,6 +241,41 @@ const Login: FC = () => {
                     {t("auth.hasAccount", "Já tem conta? Entrar")}
                   </button>
                 )}
+              </div>
+            </form>
+          )}
+
+          {/* Forgot Password */}
+          {authMode === "forgot" && (
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <input
+                  type="email"
+                  required
+                  placeholder={t("auth.email")}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors"
+              >
+                {isLoading ? t("app.loading") : t("auth.sendResetLink", "Enviar link de redefinição")}
+              </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => switchMode("signin")}
+                  className="text-sm text-primary hover:text-primary/90 font-medium"
+                >
+                  {t("auth.backToSignIn", "Voltar para o login")}
+                </button>
               </div>
             </form>
           )}

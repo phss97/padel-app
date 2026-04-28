@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "./components/AuthProvider";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import Login from "./pages/Login";
@@ -20,6 +20,8 @@ import { useEffect, useMemo } from "react";
 function App() {
   const user = useAuthStore((state) => state.user);
   const theme = useAppStore((state) => state.theme);
+  const location = useLocation();
+  const isLoginPage = location.pathname === "/";
 
   const resolvedTheme = useMemo(() => {
     if (theme !== "system") return theme;
@@ -121,7 +123,7 @@ function App() {
             />
           </Routes>
         </main>
-        {user && <BottomNav />}
+        {user && !isLoginPage && <BottomNav />}
       </div>
     </AuthProvider>
   );
