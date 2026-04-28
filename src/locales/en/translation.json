@@ -106,7 +106,10 @@
     "filterAll": "All",
     "filterAvailable": "Available",
     "filterFull": "Full",
-    "filterNotJoined": "Not joined"
+    "filterNotJoined": "Not joined",
+    "permanentLink": "Permanent link",
+    "temporaryInvite": "Temporary invite",
+    "copyPrompt": "Copy the link:"
   },
   "match": {
     "create": "Create Match",

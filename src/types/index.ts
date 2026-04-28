@@ -25,6 +25,7 @@ export interface Group {
   max_players_3h_plus: number;
   invite_code?: string;
   invite_expires_at?: string;
+  permanent_invite_code?: string;
   is_active: boolean;
   created_by: string;
   created_at: string;

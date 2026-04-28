@@ -12,23 +12,33 @@ export default function JoinGroup() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
   const code = searchParams.get("code");
+  const perm = searchParams.get("perm");
   const [error, setError] = useState("");
   const [joined, setJoined] = useState(false);
 
+  const isPermanent = !!perm;
+  const lookupCode = perm || code;
+
   const { data: group, isLoading: isLoadingGroup } = useQuery({
-    queryKey: ["group-by-code", code],
+    queryKey: ["group-by-code", lookupCode],
     queryFn: async () => {
-      if (!code) return null;
-      const { data, error } = await supabase
+      if (!lookupCode) return null;
+      let query = supabase
         .from("groups")
         .select("*")
-        .eq("invite_code", code)
-        .eq("is_active", true)
-        .single();
+        .eq("is_active", true);
+
+      if (perm) {
+        query = query.eq("permanent_invite_code", perm);
+      } else {
+        query = query.eq("invite_code", code);
+      }
+
+      const { data, error } = await query.single();
       if (error) throw error;
       return data;
     },
-    enabled: !!code,
+    enabled: !!lookupCode,
   });
 
   const { data: existingMembership } = useQuery({
@@ -74,7 +84,7 @@ export default function JoinGroup() {
     navigate("/");
   };
 
-  if (!code) {
+  if (!lookupCode) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-xl p-6 shadow-sm text-center space-y-4">
@@ -126,16 +136,16 @@ export default function JoinGroup() {
     );
   }
 
-  const isExpired = group.invite_expires_at
+  const isExpired = !isPermanent && group.invite_expires_at
     ? new Date(group.invite_expires_at) < new Date()
-    : true;
+    : false;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="flex items-center gap-3 p-4">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/groups")}
             className="p-2 -ml-2 hover:bg-gray-100 rounded-lg"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />

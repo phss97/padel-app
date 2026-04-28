@@ -33,6 +33,7 @@ export default function GroupDetail() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showCreateMatchModal, setShowCreateMatchModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [inviteError, setInviteError] = useState("");
 
   const { data: group } = useQuery<Group>({
     queryKey: ["group", id],
@@ -135,8 +136,9 @@ export default function GroupDetail() {
 
   const generateInviteCode = useMutation({
     mutationFn: async () => {
+      if (!id) throw new Error("No group ID");
       const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("groups")
         .update({
           invite_code: code,
@@ -144,12 +146,20 @@ export default function GroupDetail() {
             Date.now() + 7 * 24 * 60 * 60 * 1000
           ).toISOString(),
         })
-        .eq("id", id);
+        .eq("id", id)
+        .select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Update failed — check permissions");
+      }
       return code;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["group", id] });
+      setInviteError("");
+    },
+    onError: (err: Error) => {
+      setInviteError(err.message);
     },
   });
 
@@ -377,22 +387,21 @@ export default function GroupDetail() {
             <h2 className="text-lg font-semibold text-gray-900">
               {t("group.invite")}
             </h2>
-            {group?.invite_code &&
-            group.invite_expires_at &&
-            new Date(group.invite_expires_at) > new Date() ? (
-              <>
-                <div className="bg-gray-100 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-mono font-bold tracking-wider text-gray-900">
-                    {group.invite_code}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {t("group.expiresAt", "Expira em")}{" "}
-                    {new Date(group.invite_expires_at).toLocaleDateString()}
+
+            {/* Permanent invite */}
+            {group?.permanent_invite_code && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  {t("group.permanentLink", "Link permanente")}
+                </p>
+                <div className="bg-gray-100 rounded-lg p-3 text-center">
+                  <p className="text-lg font-mono font-bold tracking-wider text-gray-900">
+                    {group.permanent_invite_code}
                   </p>
                 </div>
                 <button
                   onClick={async () => {
-                    const url = `${window.location.origin}/groups/join?code=${group.invite_code}`;
+                    const url = `${window.location.origin}/groups/join?perm=${group.permanent_invite_code}`;
                     try {
                       await navigator.clipboard.writeText(url);
                       setCopied(true);
@@ -401,30 +410,84 @@ export default function GroupDetail() {
                       window.prompt(t("group.copyPrompt", "Copie o link:"), url);
                     }
                   }}
-                  className={`w-full py-3 rounded-xl font-medium transition-colors ${
+                  className={`w-full py-2.5 rounded-xl font-medium text-sm transition-colors ${
                     copied
                       ? "bg-green-600 text-white"
-                      : "bg-primary-600 text-white"
+                      : "bg-gray-800 text-white"
                   }`}
                 >
                   {copied
                     ? t("group.linkCopied", "Link copiado!")
                     : t("group.copyLink", "Copiar link")}
                 </button>
-              </>
-            ) : (
-              <button
-                onClick={() => generateInviteCode.mutate()}
-                disabled={generateInviteCode.isPending}
-                className="w-full py-3 bg-primary-600 text-white rounded-xl font-medium disabled:opacity-50"
-              >
-                {generateInviteCode.isPending
-                  ? t("app.loading")
-                  : t("group.generateCode", "Gerar código de convite")}
-              </button>
+              </div>
             )}
+
+            {/* Temporary invite */}
+            <div className="border-t border-gray-100 pt-4 space-y-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                {t("group.temporaryInvite", "Convite temporário")}
+              </p>
+              {group?.invite_code &&
+              group.invite_expires_at &&
+              new Date(group.invite_expires_at) > new Date() ? (
+                <>
+                  <div className="bg-gray-100 rounded-lg p-4 text-center">
+                    <p className="text-2xl font-mono font-bold tracking-wider text-gray-900">
+                      {group.invite_code}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {t("group.expiresAt", "Expira em")}{" "}
+                      {new Date(group.invite_expires_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const url = `${window.location.origin}/groups/join?code=${group.invite_code}`;
+                      try {
+                        await navigator.clipboard.writeText(url);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      } catch {
+                        window.prompt(t("group.copyPrompt", "Copie o link:"), url);
+                      }
+                    }}
+                    className={`w-full py-2.5 rounded-xl font-medium text-sm transition-colors ${
+                      copied
+                        ? "bg-green-600 text-white"
+                        : "bg-primary-600 text-white"
+                    }`}
+                  >
+                    {copied
+                      ? t("group.linkCopied", "Link copiado!")
+                      : t("group.copyLink", "Copiar link")}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setInviteError("");
+                    generateInviteCode.mutate();
+                  }}
+                  disabled={generateInviteCode.isPending}
+                  className="w-full py-2.5 bg-primary-600 text-white rounded-xl font-medium text-sm disabled:opacity-50"
+                >
+                  {generateInviteCode.isPending
+                    ? t("app.loading")
+                    : t("group.generateCode", "Gerar código de convite")}
+                </button>
+              )}
+            </div>
+
+            {inviteError && (
+              <p className="text-sm text-red-600 text-center">{inviteError}</p>
+            )}
+
             <button
-              onClick={() => setShowInviteModal(false)}
+              onClick={() => {
+                setShowInviteModal(false);
+                setInviteError("");
+              }}
               className="w-full py-3 text-gray-600 font-medium"
             >
               {t("app.close")}

@@ -106,7 +106,10 @@
     "filterAll": "Todos",
     "filterAvailable": "Com vagas",
     "filterFull": "Lotados",
-    "filterNotJoined": "Não entrados"
+    "filterNotJoined": "Não entrados",
+    "permanentLink": "Link permanente",
+    "temporaryInvite": "Convite temporário",
+    "copyPrompt": "Copie o link:"
   },
   "match": {
     "create": "Criar Partida",

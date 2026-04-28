@@ -31,12 +31,18 @@ export default function Groups() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Not authenticated");
 
+      const permanentCode = Math.random()
+        .toString(36)
+        .substring(2, 10)
+        .toUpperCase();
+
       const { data: group, error: groupError } = await supabase
         .from("groups")
         .insert({
           name: groupName.trim(),
           description: groupDescription.trim() || null,
           created_by: userData.user.id,
+          permanent_invite_code: permanentCode,
         })
         .select()
         .single();
