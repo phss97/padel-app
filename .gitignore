@@ -29,6 +29,10 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Supabase CLI
+supabase/.temp/
+supabase/.env
+
 # OS
 .DS_Store
 Thumbs.db
