@@ -8,6 +8,7 @@ import GroupDetail from "./pages/GroupDetail";
 import JoinGroup from "./pages/JoinGroup";
 import CreateMatch from "./pages/CreateMatch";
 import CreateVenue from "./pages/CreateVenue";
+import GroupSettings from "./pages/GroupSettings";
 import MatchDetail from "./pages/MatchDetail";
 import Matches from "./pages/Matches";
 import Profile from "./pages/Profile";
@@ -61,6 +62,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <CreateVenue />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/groups/:id/settings"
+              element={
+                <ProtectedRoute>
+                  <GroupSettings />
                 </ProtectedRoute>
               }
             />

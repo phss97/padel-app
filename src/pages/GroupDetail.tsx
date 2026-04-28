@@ -30,6 +30,7 @@ export default function GroupDetail() {
   const [activeTab, setActiveTab] = useState<TabType>("upcoming");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showCreateMatchModal, setShowCreateMatchModal] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const { data: group } = useQuery<Group & { venues: Venue }>({
     queryKey: ["group", id],
@@ -296,7 +297,8 @@ export default function GroupDetail() {
               {t("group.invite")}
             </h2>
             {group?.invite_code &&
-            new Date(group.invite_expires_at || "") > new Date() ? (
+            group.invite_expires_at &&
+            new Date(group.invite_expires_at) > new Date() ? (
               <>
                 <div className="bg-gray-100 rounded-lg p-4 text-center">
                   <p className="text-2xl font-mono font-bold tracking-wider text-gray-900">
@@ -304,17 +306,29 @@ export default function GroupDetail() {
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
                     {t("group.expiresAt", "Expira em")}{" "}
-                    {new Date(group.invite_expires_at!).toLocaleDateString()}
+                    {new Date(group.invite_expires_at).toLocaleDateString()}
                   </p>
                 </div>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     const url = `${window.location.origin}/groups/join?code=${group.invite_code}`;
-                    navigator.clipboard.writeText(url);
+                    try {
+                      await navigator.clipboard.writeText(url);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    } catch {
+                      window.prompt(t("group.copyPrompt", "Copie o link:"), url);
+                    }
                   }}
-                  className="w-full py-3 bg-primary-600 text-white rounded-xl font-medium"
+                  className={`w-full py-3 rounded-xl font-medium transition-colors ${
+                    copied
+                      ? "bg-green-600 text-white"
+                      : "bg-primary-600 text-white"
+                  }`}
                 >
-                  {t("group.copyLink", "Copiar link")}
+                  {copied
+                    ? t("group.linkCopied", "Link copiado!")
+                    : t("group.copyLink", "Copiar link")}
                 </button>
               </>
             ) : (
