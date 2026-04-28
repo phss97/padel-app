@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { Calendar, Users } from "lucide-react";
 import { formatMatchDate, formatMatchTime } from "../lib/dateUtils";
+import { getConfirmedCount } from "../lib/matchUtils";
 
 export default function Matches() {
   const { t, i18n } = useTranslation();
@@ -14,7 +15,7 @@ export default function Matches() {
     queryFn: async () => {
       const { data } = await supabase
         .from("match_players")
-        .select("*, matches(*, venues(name), match_players(count))")
+        .select("*, matches(*, venues(name), match_players(status))")
         .eq("status", "confirmed")
         .order("joined_at", { ascending: false });
       return data || [];
@@ -28,7 +29,7 @@ export default function Matches() {
       <div className="space-y-3">
         {myMatches?.map((entry) => {
           const match = entry.matches;
-          const playerCount = match.match_players?.[0]?.count || 0;
+          const playerCount = getConfirmedCount(match);
           return (
             <div
               key={entry.id}

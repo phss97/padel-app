@@ -14,16 +14,19 @@ import {
   Calendar,
   Clock,
   ChevronRight,
+  UserCheck,
 } from "lucide-react";
 import type { Group, Venue, Match } from "../types";
 import { useClipboard } from "../hooks/useClipboard";
 import { generateInviteCode as makeInviteCode } from "../lib/inviteUtils";
 import { formatMatchDate, formatMatchTime } from "../lib/dateUtils";
+import { getConfirmedCount } from "../lib/matchUtils";
 
-type MatchWithCount = Match & { match_players: { count: number }[] };
+type MatchWithCount = Match & { match_players: { status: string }[] };
 
 type TabType = "my-matches" | "upcoming" | "past";
-type UpcomingFilter = "all" | "available" | "full" | "not-joined";
+type ParticipationFilter = "all" | "joined" | "not-joined";
+type FullnessFilter = "all" | "available" | "full";
 
 export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
@@ -32,7 +35,9 @@ export default function GroupDetail() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const [activeTab, setActiveTab] = useState<TabType>("upcoming");
-  const [upcomingFilter, setUpcomingFilter] = useState<UpcomingFilter>("all");
+  const [participationFilter, setParticipationFilter] =
+    useState<ParticipationFilter>("all");
+  const [fullnessFilter, setFullnessFilter] = useState<FullnessFilter>("all");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showCreateMatchModal, setShowCreateMatchModal] = useState(false);
   const [inviteError, setInviteError] = useState("");
@@ -84,7 +89,7 @@ export default function GroupDetail() {
     queryFn: async () => {
       let query = supabase
         .from("matches")
-        .select("*, match_players(count)")
+        .select("*, match_players(status)")
         .eq("group_id", id);
 
       const now = new Date().toISOString();
@@ -110,7 +115,7 @@ export default function GroupDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("match_players")
-        .select("*, matches(*, venues(name), match_players(count))")
+        .select("*, matches(*, venues(name), match_players(status))")
         .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
         .eq("matches.group_id", id)
         .eq("status", "confirmed");
@@ -181,25 +186,6 @@ export default function GroupDetail() {
     [t]
   );
 
-  const filters = useMemo(
-    () => [
-      { key: "all" as UpcomingFilter, label: t("group.filterAll", "Todos") },
-      {
-        key: "available" as UpcomingFilter,
-        label: t("group.filterAvailable", "Com vagas"),
-      },
-      { key: "full" as UpcomingFilter, label: t("group.filterFull", "Lotados") },
-      {
-        key: "not-joined" as UpcomingFilter,
-        label: t("group.filterNotJoined", "Não entrados"),
-      },
-    ],
-    [t]
-  );
-
-  const getConfirmedCount = (m: MatchWithCount) =>
-    m.match_players?.[0]?.count || 0;
-
   const displayedMatches: MatchWithCount[] = useMemo(() => {
     if (activeTab === "my-matches") {
       return (myMatches?.map((m: { matches: MatchWithCount }) => m.matches) || []);
@@ -207,13 +193,16 @@ export default function GroupDetail() {
     return (matches || []).filter((m) => {
       if (activeTab !== "upcoming") return true;
       const count = getConfirmedCount(m);
-      if (upcomingFilter === "available") return count < m.max_players;
-      if (upcomingFilter === "full") return count >= m.max_players;
-      if (upcomingFilter === "not-joined")
-        return !myGroupMatchPlayers?.some((p) => p.match_id === m.id);
+      const isJoined = myGroupMatchPlayers?.some((p) => p.match_id === m.id);
+
+      if (fullnessFilter === "available" && count >= m.max_players) return false;
+      if (fullnessFilter === "full" && count < m.max_players) return false;
+      if (participationFilter === "joined" && !isJoined) return false;
+      if (participationFilter === "not-joined" && isJoined) return false;
+
       return true;
     });
-  }, [activeTab, myMatches, matches, upcomingFilter, myGroupMatchPlayers]);
+  }, [activeTab, myMatches, matches, fullnessFilter, participationFilter, myGroupMatchPlayers]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -289,20 +278,25 @@ export default function GroupDetail() {
 
       {/* Upcoming filters */}
       {activeTab === "upcoming" && (
-        <div className="bg-surface border-b border-border px-4 py-2 flex gap-2 overflow-x-auto">
-          {filters.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setUpcomingFilter(f.key)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                upcomingFilter === f.key
-                  ? "bg-primary text-white"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="bg-surface border-b border-border px-4 py-3 flex gap-3">
+          <select
+            value={participationFilter}
+            onChange={(e) => setParticipationFilter(e.target.value as ParticipationFilter)}
+            className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="all">{t("group.filterAll", "Todos")}</option>
+            <option value="joined">{t("group.filterJoined", "Participando")}</option>
+            <option value="not-joined">{t("group.filterNotJoined", "Não participando")}</option>
+          </select>
+          <select
+            value={fullnessFilter}
+            onChange={(e) => setFullnessFilter(e.target.value as FullnessFilter)}
+            className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="all">{t("group.filterAllFullness", "Todos")}</option>
+            <option value="available">{t("group.filterAvailable", "Com vagas")}</option>
+            <option value="full">{t("group.filterFull", "Lotados")}</option>
+          </select>
         </div>
       )}
 
@@ -318,51 +312,64 @@ export default function GroupDetail() {
 
       {/* Match list */}
       <div className="p-4 space-y-3">
-        {displayedMatches?.map((match) => (
-          <div
-            key={match.id}
-            onClick={() =>
-              navigate(`/matches/${match.id}`, {
-                state: { from: `/groups/${id}` },
-              })
-            }
-            className="bg-surface rounded-xl border border-border p-4 shadow-sm active:scale-[0.98] transition-transform cursor-pointer"
-          >
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="w-4 h-4 text-primary" />
-                  <span className="font-medium">
-                    {formatMatchDate(match.start_time, i18n.language)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="w-4 h-4" />
-                  <span>
-                    {formatMatchTime(match.start_time, i18n.language)} - {formatMatchTime(match.end_time, i18n.language)}
-                  </span>
-                </div>
-                {match.court_cost && (
-                  <div className="text-sm text-muted-foreground">
-                    R$ {match.court_cost.toFixed(2)} / pessoa
+        {displayedMatches?.map((match) => {
+          const myStatus = myGroupMatchPlayers?.find(
+            (p) => p.match_id === match.id
+          )?.status;
+          return (
+            <div
+              key={match.id}
+              onClick={() =>
+                navigate(`/matches/${match.id}`, {
+                  state: { from: `/groups/${id}` },
+                })
+              }
+              className="bg-surface rounded-xl border border-border p-4 shadow-sm active:scale-[0.98] transition-transform cursor-pointer"
+            >
+              <div className="flex items-start justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4 text-primary" />
+                    <span className="font-medium">
+                      {formatMatchDate(match.start_time, i18n.language)}
+                    </span>
                   </div>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                <div
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                    (match.match_players?.[0]?.count || 0) >= match.max_players
-                      ? "bg-destructive/10 text-destructive"
-                      : "bg-green-500/10 text-green-500"
-                  }`}
-                >
-                  {match.match_players?.[0]?.count || 0}/{match.max_players}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="w-4 h-4" />
+                    <span>
+                      {formatMatchTime(match.start_time, i18n.language)} - {formatMatchTime(match.end_time, i18n.language)}
+                    </span>
+                  </div>
+                  {match.court_cost && (
+                    <div className="text-sm text-muted-foreground">
+                      R$ {match.court_cost.toFixed(2)} / pessoa
+                    </div>
+                  )}
+                  {myStatus && (
+                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                      <UserCheck className="w-3 h-3" />
+                      {myStatus === "confirmed"
+                        ? t("match.participating", "Participando")
+                        : t("match.waitlisted", "Lista de espera")}
+                    </div>
+                  )}
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground/70" />
+                <div className="flex items-center gap-1">
+                  <div
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      getConfirmedCount(match) >= match.max_players
+                        ? "bg-destructive/10 text-destructive"
+                        : "bg-green-500/10 text-green-500"
+                    }`}
+                  >
+                    {getConfirmedCount(match)}/{match.max_players}
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/70" />
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {(!displayedMatches || displayedMatches.length === 0) && (
           <div className="text-center py-12 text-muted-foreground/70">

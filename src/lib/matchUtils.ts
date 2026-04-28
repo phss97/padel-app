@@ -22,3 +22,9 @@ export function getDurationLabel(
   if (hours < 3) return t("match.duration2h");
   return t("match.duration3h");
 }
+
+export function getConfirmedCount(
+  match: { match_players?: { status: string }[] }
+): number {
+  return match.match_players?.filter((p) => p.status === "confirmed").length || 0;
+}

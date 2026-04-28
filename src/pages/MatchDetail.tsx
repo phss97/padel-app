@@ -142,6 +142,9 @@ export default function MatchDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["match-players", matchId] });
       queryClient.invalidateQueries({ queryKey: ["group-matches", match?.group_id] });
+      queryClient.invalidateQueries({ queryKey: ["my-matches"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-matches"] });
+      queryClient.invalidateQueries({ queryKey: ["my-group-matches", match?.group_id] });
       setError("");
     },
     onError: (err: Error) => setError(err.message),
@@ -161,6 +164,9 @@ export default function MatchDetail() {
       queryClient.invalidateQueries({ queryKey: ["match-players", matchId] });
       queryClient.invalidateQueries({ queryKey: ["group-matches", match?.group_id] });
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["my-matches"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-matches"] });
+      queryClient.invalidateQueries({ queryKey: ["my-group-matches", match?.group_id] });
       setShowForfeitModal(false);
       setError("");
     },
@@ -210,6 +216,11 @@ export default function MatchDetail() {
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["match-players", matchId] });
+      queryClient.invalidateQueries({ queryKey: ["group-matches", match?.group_id] });
+      queryClient.invalidateQueries({ queryKey: ["my-matches"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-matches"] });
+      queryClient.invalidateQueries({ queryKey: ["my-group-matches", match?.group_id] });
       if (extendJoinMatch && user && !isPlayer && !isWaitlisted) {
         await supabase.rpc("check_in_match", {
           p_match_id: matchId,
