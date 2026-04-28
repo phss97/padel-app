@@ -32,6 +32,7 @@ export default function Dashboard() {
         .from("match_players")
         .select("match_id, status")
         .eq("user_id", user.id)
+        .in("status", ["confirmed", "waitlist"])
         .in(
           "match_id",
           upcomingMatches.map((m) => m.id)
@@ -69,7 +70,7 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">{match.venues?.name}</p>
-                  {myStatus && (
+                  {(myStatus === "confirmed" || myStatus === "waitlist") && (
                     <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
                       <UserCheck className="w-3 h-3" />
                       {myStatus === "confirmed"

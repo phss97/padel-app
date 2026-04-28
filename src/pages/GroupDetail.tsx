@@ -22,7 +22,10 @@ import { generateInviteCode as makeInviteCode } from "../lib/inviteUtils";
 import { formatMatchDate, formatMatchTime } from "../lib/dateUtils";
 import { getConfirmedCount } from "../lib/matchUtils";
 
-type MatchWithCount = Match & { match_players: { status: string }[] };
+type MatchWithCount = Match & {
+  match_players: { status: string }[];
+  venues?: { name: string };
+};
 
 type TabType = "my-matches" | "upcoming" | "past";
 type ParticipationFilter = "all" | "joined" | "not-joined";
@@ -89,7 +92,7 @@ export default function GroupDetail() {
     queryFn: async () => {
       let query = supabase
         .from("matches")
-        .select("*, match_players(status)")
+        .select("*, venues(name), match_players(status)")
         .eq("group_id", id);
 
       const now = new Date().toISOString();
@@ -133,6 +136,7 @@ export default function GroupDetail() {
         .from("match_players")
         .select("match_id, status")
         .eq("user_id", user.id)
+        .in("status", ["confirmed", "waitlist"])
         .in(
           "match_id",
           (matches || []).map((m) => m.id)
@@ -279,24 +283,34 @@ export default function GroupDetail() {
       {/* Upcoming filters */}
       {activeTab === "upcoming" && (
         <div className="bg-surface border-b border-border px-4 py-3 flex gap-3">
-          <select
-            value={participationFilter}
-            onChange={(e) => setParticipationFilter(e.target.value as ParticipationFilter)}
-            className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="all">{t("group.filterAll", "Todos")}</option>
-            <option value="joined">{t("group.filterJoined", "Participando")}</option>
-            <option value="not-joined">{t("group.filterNotJoined", "Não participando")}</option>
-          </select>
-          <select
-            value={fullnessFilter}
-            onChange={(e) => setFullnessFilter(e.target.value as FullnessFilter)}
-            className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="all">{t("group.filterAllFullness", "Todos")}</option>
-            <option value="available">{t("group.filterAvailable", "Com vagas")}</option>
-            <option value="full">{t("group.filterFull", "Lotados")}</option>
-          </select>
+          <div className="flex-1 space-y-1">
+            <label className="block text-xs font-medium text-muted-foreground">
+              {t("group.filterParticipationLabel", "Participação")}
+            </label>
+            <select
+              value={participationFilter}
+              onChange={(e) => setParticipationFilter(e.target.value as ParticipationFilter)}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="all">{t("group.filterAll", "Todos")}</option>
+              <option value="joined">{t("group.filterJoined", "Participando")}</option>
+              <option value="not-joined">{t("group.filterNotJoined", "Não participando")}</option>
+            </select>
+          </div>
+          <div className="flex-1 space-y-1">
+            <label className="block text-xs font-medium text-muted-foreground">
+              {t("group.filterFullnessLabel", "Vagas")}
+            </label>
+            <select
+              value={fullnessFilter}
+              onChange={(e) => setFullnessFilter(e.target.value as FullnessFilter)}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="all">{t("group.filterAllFullness", "Todos")}</option>
+              <option value="available">{t("group.filterAvailable", "Com vagas")}</option>
+              <option value="full">{t("group.filterFull", "Lotados")}</option>
+            </select>
+          </div>
         </div>
       )}
 
@@ -340,12 +354,18 @@ export default function GroupDetail() {
                       {formatMatchTime(match.start_time, i18n.language)} - {formatMatchTime(match.end_time, i18n.language)}
                     </span>
                   </div>
+                  {match.venues?.name && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <MapPin className="w-4 h-4 text-primary" />
+                      <span>{match.venues.name}</span>
+                    </div>
+                  )}
                   {match.court_cost && (
                     <div className="text-sm text-muted-foreground">
                       R$ {match.court_cost.toFixed(2)} / pessoa
                     </div>
                   )}
-                  {myStatus && (
+                  {(myStatus === "confirmed" || myStatus === "waitlist") && (
                     <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
                       <UserCheck className="w-3 h-3" />
                       {myStatus === "confirmed"
