@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
@@ -32,6 +32,7 @@ interface MatchPlayerWithProfile {
 export default function MatchDetail() {
   const { id: matchId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -421,7 +422,12 @@ export default function MatchDetail() {
       <div className="bg-white border-b border-gray-200">
         <div className="flex items-center gap-3 p-4">
           <button
-            onClick={() => navigate(`/groups/${match.group_id}`)}
+            onClick={() =>
+              navigate(
+                (location.state as { from?: string } | null)?.from ||
+                  `/groups/${match.group_id}`
+              )
+            }
             className="p-2 -ml-2 hover:bg-gray-100 rounded-lg"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />

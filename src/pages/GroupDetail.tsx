@@ -20,6 +20,7 @@ import type { Group, Venue, Match } from "../types";
 type MatchWithCount = Match & { match_players: { count: number }[] };
 
 type TabType = "my-matches" | "upcoming" | "past";
+type UpcomingFilter = "all" | "available" | "full" | "not-joined";
 
 export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +29,7 @@ export default function GroupDetail() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const [activeTab, setActiveTab] = useState<TabType>("upcoming");
+  const [upcomingFilter, setUpcomingFilter] = useState<UpcomingFilter>("all");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showCreateMatchModal, setShowCreateMatchModal] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -90,7 +92,7 @@ export default function GroupDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("match_players")
-        .select("*, matches(*, venues(name))")
+        .select("*, matches(*, venues(name), match_players(count))")
         .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
         .eq("matches.group_id", id)
         .eq("status", "confirmed");
@@ -98,6 +100,24 @@ export default function GroupDetail() {
       return data;
     },
     enabled: !!id && activeTab === "my-matches",
+  });
+
+  const { data: myGroupMatchPlayers } = useQuery({
+    queryKey: ["my-group-match-players", id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("match_players")
+        .select("match_id, status")
+        .eq("user_id", user.id)
+        .in(
+          "match_id",
+          (matches || []).map((m) => m.id)
+        );
+      if (error) throw error;
+      return (data || []) as { match_id: string; status: string }[];
+    },
+    enabled: !!id && !!matches && matches.length > 0 && activeTab === "upcoming",
   });
 
   const generateInviteCode = useMutation({
@@ -130,10 +150,23 @@ export default function GroupDetail() {
     { key: "past", label: t("group.past") },
   ];
 
+  const getConfirmedCount = (m: MatchWithCount) =>
+    m.match_players?.[0]?.count || 0;
+
+  const isUserInMatch = (matchId: string) =>
+    myGroupMatchPlayers?.some((p) => p.match_id === matchId);
+
   const displayedMatches: MatchWithCount[] =
     activeTab === "my-matches"
       ? (myMatches?.map((m: { matches: MatchWithCount }) => m.matches) || [])
-      : (matches || []);
+      : (matches || []).filter((m) => {
+          if (activeTab !== "upcoming") return true;
+          const count = getConfirmedCount(m);
+          if (upcomingFilter === "available") return count < m.max_players;
+          if (upcomingFilter === "full") return count >= m.max_players;
+          if (upcomingFilter === "not-joined") return !isUserInMatch(m.id);
+          return true;
+        });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -141,7 +174,7 @@ export default function GroupDetail() {
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="flex items-center gap-3 p-4">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/groups")}
             className="p-2 -ml-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
@@ -206,6 +239,36 @@ export default function GroupDetail() {
         </div>
       </div>
 
+      {/* Upcoming filters */}
+      {activeTab === "upcoming" && (
+        <div className="bg-white border-b border-gray-200 px-4 py-2 flex gap-2 overflow-x-auto">
+          {[
+            { key: "all" as UpcomingFilter, label: t("group.filterAll", "Todos") },
+            {
+              key: "available" as UpcomingFilter,
+              label: t("group.filterAvailable", "Com vagas"),
+            },
+            { key: "full" as UpcomingFilter, label: t("group.filterFull", "Lotados") },
+            {
+              key: "not-joined" as UpcomingFilter,
+              label: t("group.filterNotJoined", "Não entrados"),
+            },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setUpcomingFilter(f.key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                upcomingFilter === f.key
+                  ? "bg-primary-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* FAB for new match */}
       {activeTab !== "past" && (
         <button
@@ -221,7 +284,11 @@ export default function GroupDetail() {
         {displayedMatches?.map((match) => (
           <div
             key={match.id}
-            onClick={() => navigate(`/matches/${match.id}`)}
+            onClick={() =>
+              navigate(`/matches/${match.id}`, {
+                state: { from: `/groups/${id}` },
+              })
+            }
             className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm active:scale-[0.98] transition-transform cursor-pointer"
           >
             <div className="flex items-start justify-between">

@@ -102,7 +102,11 @@
     "alreadyMember": "Você já é membro deste grupo",
     "joined": "Você entrou no grupo!",
     "loginToJoin": "Faça login para entrar no grupo",
-    "goToGroup": "Ir para o grupo"
+    "goToGroup": "Ir para o grupo",
+    "filterAll": "Todos",
+    "filterAvailable": "Com vagas",
+    "filterFull": "Lotados",
+    "filterNotJoined": "Não entrados"
   },
   "match": {
     "create": "Criar Partida",

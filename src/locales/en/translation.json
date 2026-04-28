@@ -102,7 +102,11 @@
     "alreadyMember": "You are already a member of this group",
     "joined": "You joined the group!",
     "loginToJoin": "Log in to join the group",
-    "goToGroup": "Go to group"
+    "goToGroup": "Go to group",
+    "filterAll": "All",
+    "filterAvailable": "Available",
+    "filterFull": "Full",
+    "filterNotJoined": "Not joined"
   },
   "match": {
     "create": "Create Match",

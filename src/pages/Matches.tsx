@@ -31,7 +31,11 @@ export default function Matches() {
           return (
             <div
               key={entry.id}
-              onClick={() => navigate(`/matches/${match.id}`)}
+              onClick={() =>
+                navigate(`/matches/${match.id}`, {
+                  state: { from: "/matches" },
+                })
+              }
               className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm active:scale-[0.98] transition-transform cursor-pointer"
             >
               <div className="flex items-start justify-between">
