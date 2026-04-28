@@ -46,23 +46,25 @@ VITE_SUPABASE_ANON_KEY
 VITE_VAPID_PUBLIC_KEY
 ```
 
-## Phases
-| Phase | Status | Description |
-|-------|--------|-------------|
-| 0     | ✅ Done | Scaffold: Vite + React + Tailwind + i18n + routing + build OK |
-| 1     | ✅ Done | Supabase setup: project, migrations, RLS, seed data |
-| 2     | ✅ Done | Auth flow: Magic Link + Google OAuth, protected routes, profile |
-| 3     | ✅ Done | Groups CRUD + invites |
-| 4     | ✅ Done | Venues CRUD (inline + standalone) |
-| 5     | ✅ Done | PWA Setup |
-| 6     | ✅ Done | Matches lifecycle (create, extend, merge, check-in, forfeit) |
-| 6     | ✅ Done | Matches lifecycle (create, extend, merge, check-in, forfeit) |
-| 7     | ✅ Done | Waitlist + cascade (DB triggers + UI already exposing) |
-| 8     | ✅ Done | UI polish: tabs, FAB, bottom nav, mobile-first (done incrementally) |
-| 9     | ✅ Done | Payments: Pix display + manual tracking |
-| 10    | ✅ Done | Notifications: Web Push + Edge Functions |
-| 11    | ✅ Done | Full i18n extraction (pt-BR + en) |
-| 12    | ✅ Done | Deploy config: render.yaml + static.json + build ready |
+## Completed
+- [x] Scaffold
+- [x] Supabase setup
+- [x] Auth
+- [x] Groups
+- [x] Venues
+- [x] PWA
+- [x] Matches (CRUD + merge + extend + check-in + forfeit)
+- [x] Waitlist cascade
+- [x] UI Polish
+- [x] Payments (Pix + manual tracking)
+- [x] Notifications (Web Push + Edge Functions)
+- [x] i18n
+- [x] README + Security
+
+## Next up
+1. Deploy on Render
+2. Test Email Auth
+| nav: | groups, matches...
 
 ## Database Schema (Planned)
 See `supabase/migrations/001_init_schema.sql` and `002_rls_policies.sql`.
