@@ -158,10 +158,50 @@ export default function CreateMatch() {
     createMatch.mutate({ startDateTime, endDateTime });
   };
 
+  const extendExistingMatch = useMutation({
+    mutationFn: async () => {
+      if (!adjacentMatch || !pendingMatch || !user || !group) throw new Error("Missing data");
+
+      const existingStart = new Date(adjacentMatch.start_time);
+      const existingEnd = new Date(adjacentMatch.end_time);
+      const mergedStart = new Date(Math.min(pendingMatch.startDateTime.getTime(), existingStart.getTime()));
+      const mergedEnd = new Date(Math.max(pendingMatch.endDateTime.getTime(), existingEnd.getTime()));
+      const maxPlayers = calculateMaxPlayers(mergedStart, mergedEnd, group);
+
+      const { error: updateError } = await supabase
+        .from("matches")
+        .update({
+          start_time: mergedStart.toISOString(),
+          end_time: mergedEnd.toISOString(),
+          max_players: maxPlayers,
+        })
+        .eq("id", adjacentMatch.id);
+
+      if (updateError) throw updateError;
+
+      if (joinMatch) {
+        await supabase.rpc("check_in_match", {
+          p_match_id: adjacentMatch.id,
+          p_user_id: user.id,
+        });
+      }
+
+      return adjacentMatch;
+    },
+    onSuccess: (match) => {
+      queryClient.invalidateQueries({ queryKey: ["group-matches", groupId] });
+      setShowMergeModal(false);
+      setPendingMatch(null);
+      setAdjacentMatch(null);
+      navigate(`/matches/${match.id}`);
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
   const handleConfirmMerge = () => {
-    if (!pendingMatch) return;
-    createMatch.mutate(pendingMatch);
-    setShowMergeModal(false);
+    extendExistingMatch.mutate();
   };
 
   if (!groupId) return null;
@@ -358,7 +398,7 @@ export default function CreateMatch() {
               </h2>
             </div>
             <p className="text-muted-foreground text-sm">
-              {t("match.mergeDescription", "Já existe uma partida no mesmo horário que será mesclada com esta.")}
+              {t("match.mergeDescription", "Já existe uma partida no mesmo horário. A partida existente será estendida e você entrará automaticamente nela.")}
             </p>
             <div className="bg-muted rounded-xl p-4 space-y-2 text-sm">
               <p className="text-muted-foreground">{t("match.existingMatch", "Partida existente:")}</p>
@@ -381,10 +421,10 @@ export default function CreateMatch() {
               </button>
               <button
                 onClick={handleConfirmMerge}
-                disabled={createMatch.isPending}
+                disabled={extendExistingMatch.isPending}
                 className="flex-1 py-3 bg-primary text-white rounded-xl font-medium disabled:opacity-50 hover:bg-primary/90 transition-colors"
               >
-                {createMatch.isPending ? t("app.loading") : t("match.mergeConfirm", "Mesclar e criar")}
+                {extendExistingMatch.isPending ? t("app.loading") : t("match.extendConfirm", "Estender partida")}
               </button>
             </div>
           </div>
