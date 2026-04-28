@@ -3,6 +3,7 @@
 -- so unauthenticated users on /groups/join?code=XXX get "Group not found".
 -- Solution: Add policies allowing anon reads when invite_code is valid.
 
+DROP POLICY IF EXISTS "Anyone can view groups with valid invite" ON groups;
 CREATE POLICY "Anyone can view groups with valid invite"
     ON groups FOR SELECT
     USING (
@@ -11,6 +12,7 @@ CREATE POLICY "Anyone can view groups with valid invite"
         AND invite_expires_at > NOW()
     );
 
+DROP POLICY IF EXISTS "Anyone can view venues for groups with valid invite" ON venues;
 CREATE POLICY "Anyone can view venues for groups with valid invite"
     ON venues FOR SELECT
     USING (
