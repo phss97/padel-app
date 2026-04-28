@@ -17,7 +17,8 @@
     "none": "None",
     "yes": "Yes",
     "no": "No",
-    "back": "Back"
+    "back": "Back",
+    "goToGroup": "Go to group"
   },
   "nav": {
     "groups": "Groups",
@@ -31,11 +32,20 @@
     "register": "Register",
     "email": "Email",
     "password": "Password",
+    "confirmPassword": "Confirm password",
     "magicLink": "Send magic link",
+    "sendMagicLink": "Send link",
     "magicLinkSent": "Link sent! Check your email.",
     "google": "Login with Google",
     "or": "or",
-    "subtitle": "Organize your padel matches"
+    "subtitle": "Organize your padel matches",
+    "noAccount": "Don't have an account? Sign up",
+    "hasAccount": "Already have an account? Login",
+    "signIn": "Login",
+    "signUp": "Create account",
+    "signUpSuccess": "Account created! You can now log in.",
+    "passwordsDontMatch": "Passwords don't match.",
+    "loginToJoin": "Log in to join the group"
   },
   "dashboard": {
     "upcomingMatches": "matches scheduled",
@@ -63,6 +73,7 @@
     "noUpcoming": "No matches scheduled",
     "noPast": "No past matches",
     "copyLink": "Copy link",
+    "linkCopied": "Link copied!",
     "expiresAt": "Expires on",
     "generateCode": "Generate invite code",
     "joinGroup": "Join group",
@@ -70,7 +81,28 @@
     "invalidCode": "Invalid invite code",
     "notFound": "Group not found",
     "codeExpired": "The code may have expired or the group no longer exists",
-    "inviteExpired": "This invite has expired"
+    "inviteExpired": "This invite has expired",
+    "info": "Group info",
+    "defaultVenue": "Default venue",
+    "max1h": "Max 1h",
+    "max2h": "Max 2h",
+    "max3h": "Max 3h+",
+    "saved": "Saved!",
+    "saveError": "Error saving",
+    "admin": "Admin",
+    "member": "Member",
+    "promote": "Promote",
+    "demote": "Demote",
+    "remove": "Remove",
+    "dangerZone": "Danger zone",
+    "deleteWarning": "Deactivating removes the group from the list. Historical data is preserved.",
+    "deactivate": "Deactivate group",
+    "confirmDeactivate": "Are you sure? This action cannot be undone.",
+    "confirm": "Yes, deactivate",
+    "alreadyMember": "You are already a member of this group",
+    "joined": "You joined the group!",
+    "loginToJoin": "Log in to join the group",
+    "goToGroup": "Go to group"
   },
   "match": {
     "create": "Create Match",
@@ -92,7 +124,6 @@
     "date": "Date",
     "time": "Start time",
     "duration": "Duration",
-    "players": "players",
     "optional": "optional",
     "joinAutomatically": "Join match automatically",
     "perPerson": "per person",
@@ -109,6 +140,23 @@
     "payments": "Payments",
     "markAsPaid": "Mark as paid",
     "totalCollected": "Total collected",
-    "totalCost": "Total cost"
+    "totalCost": "Total cost",
+    "extendDirection": "Direction",
+    "extendBefore": "Before",
+    "extendAfter": "After",
+    "transferBeforeForfeit": "You are the organizer. Before forfeiting, choose a new organizer:",
+    "delete": "Delete match",
+    "deleteConfirm": "Are you sure? This action cannot be undone.",
+    "noMatches": "You are not participating in any match"
+  },
+  "profile": {
+    "memberSince": "Member since",
+    "language": "Language",
+    "pushNotifications": "Push notifications",
+    "emailNotifications": "Email notifications",
+    "displayName": "Name / Nickname",
+    "namePlaceholder": "Your name",
+    "saved": "Saved!",
+    "saveError": "Error saving"
   }
 }

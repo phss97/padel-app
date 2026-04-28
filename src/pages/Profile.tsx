@@ -1,12 +1,55 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../stores/authStore";
-import { LogOut, Globe, Bell, Mail, User } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "../lib/supabase";
+import { LogOut, Globe, Bell, Mail, User, Save } from "lucide-react";
 
 export default function Profile() {
   const { t, i18n } = useTranslation();
   const { user, signOut } = useAuthStore();
+  const queryClient = useQueryClient();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [name, setName] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
+
+  const { data: profile } = useQuery({
+    queryKey: ["profile", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  useEffect(() => {
+    if (profile?.name) setName(profile.name);
+  }, [profile]);
+
+  const updateProfile = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error("Not authenticated");
+      const { error } = await supabase
+        .from("profiles")
+        .update({ name: name.trim() })
+        .eq("id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
+      setSaveMessage(t("profile.saved", "Salvo!"));
+      setTimeout(() => setSaveMessage(""), 2000);
+    },
+    onError: () => {
+      setSaveMessage(t("profile.saveError", "Erro ao salvar"));
+    },
+  });
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -14,8 +57,8 @@ export default function Profile() {
     setIsSigningOut(false);
   };
 
-  const toggleLanguage = () => {
-    i18n.changeLanguage(i18n.language === "pt" ? "en" : "pt");
+  const handleLanguageChange = (lang: string) => {
+    i18n.changeLanguage(lang);
   };
 
   return (
@@ -28,28 +71,62 @@ export default function Profile() {
             <div className="w-14 h-14 bg-primary-100 rounded-full flex items-center justify-center">
               <User className="w-7 h-7 text-primary-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="font-semibold text-gray-900">{user.email}</p>
-              <p className="text-sm text-gray-500">{t("profile.memberSince", "Membro desde")} ...</p>
+              <p className="text-sm text-gray-500">
+                {t("profile.memberSince", "Membro desde")}{" "}
+                {profile?.created_at
+                  ? new Date(profile.created_at).toLocaleDateString()
+                  : "..."}
+              </p>
             </div>
           </div>
         </div>
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-100">
-        <button
-          onClick={toggleLanguage}
-          className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors"
-        >
-          <Globe className="w-5 h-5 text-gray-500" />
-          <span className="flex-1 text-left text-gray-900">
-            {t("profile.language", "Idioma")}
-          </span>
-          <span className="text-sm text-gray-500">
-            {i18n.language === "pt" ? "Português" : "English"}
-          </span>
-        </button>
+        {/* Name edit */}
+        <div className="p-4 space-y-3">
+          <label className="block text-sm font-medium text-gray-700">
+            {t("profile.displayName", "Nome / Apelido")}
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("profile.namePlaceholder", "Seu nome")}
+              className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <button
+              onClick={() => updateProfile.mutate()}
+              disabled={updateProfile.isPending}
+              className="px-4 py-2.5 bg-primary-600 text-white rounded-xl font-medium disabled:opacity-50 hover:bg-primary-700 transition-colors flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              {updateProfile.isPending ? t("app.loading") : t("app.save")}
+            </button>
+          </div>
+          {saveMessage && (
+            <p className="text-sm text-green-600">{saveMessage}</p>
+          )}
+        </div>
 
+        {/* Language dropdown */}
+        <div className="flex items-center gap-3 p-4">
+          <Globe className="w-5 h-5 text-gray-500" />
+          <span className="flex-1 text-gray-900">{t("profile.language", "Idioma")}</span>
+          <select
+            value={i18n.language}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+            className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="pt">Português</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+
+        {/* Push notifications toggle (placeholder) */}
         <div className="flex items-center gap-3 p-4">
           <Bell className="w-5 h-5 text-gray-500" />
           <span className="flex-1 text-gray-900">{t("profile.pushNotifications", "Notificações push")}</span>
@@ -59,6 +136,7 @@ export default function Profile() {
           </label>
         </div>
 
+        {/* Email notifications toggle (placeholder) */}
         <div className="flex items-center gap-3 p-4">
           <Mail className="w-5 h-5 text-gray-500" />
           <span className="flex-1 text-gray-900">{t("profile.emailNotifications", "Notificações por email")}</span>

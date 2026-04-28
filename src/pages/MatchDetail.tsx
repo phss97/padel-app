@@ -15,6 +15,7 @@ import {
   Settings,
   AlertTriangle,
   DollarSign,
+  Trash2,
 } from "lucide-react";
 import type { Match, Profile, Group, MatchPayment } from "../types";
 
@@ -36,6 +37,18 @@ export default function MatchDetail() {
   const [error, setError] = useState("");
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>("");
+
+  // Extend modal states
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [extendDirection, setExtendDirection] = useState<"after" | "before">("after");
+  const [extendHours, setExtendHours] = useState(1);
+  const [extendJoinMatch, setExtendJoinMatch] = useState(false);
+
+  // Delete modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Forfeit transfer modal
+  const [showForfeitModal, setShowForfeitModal] = useState(false);
 
   const { data: match } = useQuery<Match & { group: Group; venue: { name: string } }>({
     queryKey: ["match", matchId],
@@ -120,6 +133,7 @@ export default function MatchDetail() {
       queryClient.invalidateQueries({ queryKey: ["match-players", matchId] });
       queryClient.invalidateQueries({ queryKey: ["group-matches", match?.group_id] });
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+      setShowForfeitModal(false);
       setError("");
     },
     onError: (err: Error) => setError(err.message),
@@ -144,17 +158,53 @@ export default function MatchDetail() {
 
   const extendMutation = useMutation({
     mutationFn: async () => {
-      if (!matchId) throw new Error("No match ID");
-      const { data, error } = await supabase.rpc("extend_match", {
-        p_match_id: matchId,
-        p_hours: 1,
-      });
-      if (error) throw error;
-      return data;
+      if (!matchId || !match) throw new Error("No match");
+      // Calculate new start/end based on direction
+      const currentStart = new Date(match.start_time);
+
+      if (extendDirection === "before") {
+        const newStart = new Date(currentStart.getTime() - extendHours * 60 * 60 * 1000);
+        const { data, error } = await supabase
+          .from("matches")
+          .update({ start_time: newStart.toISOString() })
+          .eq("id", matchId)
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      } else {
+        const { data, error } = await supabase.rpc("extend_match", {
+          p_match_id: matchId,
+          p_hours: extendHours,
+        });
+        if (error) throw error;
+        return data;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+      // Auto check-in if opted
+      if (extendJoinMatch && user && !isPlayer && !isWaitlisted) {
+        supabase.rpc("check_in_match", {
+          p_match_id: matchId,
+          p_user_id: user.id,
+        });
+      }
+      setShowExtendModal(false);
       setError("");
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!matchId) throw new Error("No match ID");
+      const { error } = await supabase.from("matches").delete().eq("id", matchId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["group-matches", match?.group_id] });
+      navigate(`/groups/${match?.group_id}`);
     },
     onError: (err: Error) => setError(err.message),
   });
@@ -196,6 +246,27 @@ export default function MatchDetail() {
     onError: (err: Error) => setError(err.message),
   });
 
+  const handleForfeit = () => {
+    if (isOwner && confirmedPlayers.length > 1) {
+      setShowForfeitModal(true);
+    } else if (isOwner && confirmedPlayers.length <= 1) {
+      // Owner is the only player - auto-delete match
+      deleteMutation.mutate();
+    } else {
+      forfeitMutation.mutate();
+    }
+  };
+
+  const handleTransferAndForfeit = () => {
+    if (selectedNewOwner) {
+      transferOwnershipMutation.mutate(selectedNewOwner, {
+        onSuccess: () => {
+          forfeitMutation.mutate();
+        },
+      });
+    }
+  };
+
   if (!match) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -210,7 +281,7 @@ export default function MatchDetail() {
       <div className="bg-white border-b border-gray-200">
         <div className="flex items-center gap-3 p-4">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(`/groups/${match.group_id}`)}
             className="p-2 -ml-2 hover:bg-gray-100 rounded-lg"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
@@ -220,14 +291,24 @@ export default function MatchDetail() {
               {t("match.details", "Detalhes da partida")}
             </h1>
           </div>
-          {isOwner && (
-            <button
-              onClick={() => setShowTransferModal(true)}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <Settings className="w-5 h-5 text-gray-600" />
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {isOwner && (
+              <>
+                <button
+                  onClick={() => setShowTransferModal(true)}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <Settings className="w-5 h-5 text-gray-600" />
+                </button>
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="p-2 hover:bg-red-100 rounded-lg"
+                >
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -464,11 +545,11 @@ export default function MatchDetail() {
 
           {(isPlayer || isWaitlisted) && (
             <button
-              onClick={() => forfeitMutation.mutate()}
-              disabled={forfeitMutation.isPending}
+              onClick={handleForfeit}
+              disabled={forfeitMutation.isPending || deleteMutation.isPending}
               className="w-full py-3.5 border-2 border-red-200 text-red-600 rounded-xl font-semibold disabled:opacity-50 hover:bg-red-50 transition-colors"
             >
-              {forfeitMutation.isPending
+              {forfeitMutation.isPending || deleteMutation.isPending
                 ? t("app.loading")
                 : t("match.forfeit")}
             </button>
@@ -476,36 +557,101 @@ export default function MatchDetail() {
 
           {isOwner && (
             <button
-              onClick={() => extendMutation.mutate()}
-              disabled={extendMutation.isPending}
-              className="w-full py-3.5 bg-white border-2 border-primary-200 text-primary-700 rounded-xl font-semibold disabled:opacity-50 hover:bg-primary-50 transition-colors flex items-center justify-center gap-2"
+              onClick={() => setShowExtendModal(true)}
+              className="w-full py-3.5 bg-white border-2 border-primary-200 text-primary-700 rounded-xl font-semibold hover:bg-primary-50 transition-colors flex items-center justify-center gap-2"
             >
               <Plus className="w-5 h-5" />
-              {extendMutation.isPending
-                ? t("app.loading")
-                : t("match.extend")}
+              {t("match.extend")}
             </button>
           )}
         </div>
+      </div>
 
-        {/* Ownership Transfer Warning */}
-        {isOwner && confirmedPlayers.length > 1 && (
-          <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-amber-800">
-                  {t("match.transferWarning", "Se você desistir, a partida será transferida para:")}
-                </p>
-                <p className="text-sm text-amber-700 mt-1">
-                  {confirmedPlayers.find((p) => p.user_id !== user?.id)?.profile.name ||
-                    t("match.earliestJoined", "o próximo jogador a entrar")}
-                </p>
+      {/* Extend Match Modal */}
+      {showExtendModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {t("match.extend", "Estender partida")}
+            </h2>
+            {/* Direction */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                {t("match.extendDirection", "Direção")}
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { key: "before" as const, label: t("match.extendBefore", "Antes") },
+                  { key: "after" as const, label: t("match.extendAfter", "Depois") },
+                ].map((d) => (
+                  <button
+                    key={d.key}
+                    onClick={() => setExtendDirection(d.key)}
+                    className={`py-3 rounded-xl border-2 font-medium transition-all ${
+                      extendDirection === d.key
+                        ? "border-primary-500 bg-primary-50 text-primary-700"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
               </div>
             </div>
+            {/* Duration */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                {t("match.duration", "Duração")}
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                {[1, 2, 3].map((h) => (
+                  <button
+                    key={h}
+                    onClick={() => setExtendHours(h)}
+                    className={`py-3 rounded-xl border-2 font-medium transition-all ${
+                      extendHours === h
+                        ? "border-primary-500 bg-primary-50 text-primary-700"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    {h}h
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Auto check-in */}
+            {!isPlayer && !isWaitlisted && (
+              <div className="flex items-center gap-3 p-4 bg-primary-50 rounded-xl">
+                <input
+                  type="checkbox"
+                  id="extendJoinMatch"
+                  checked={extendJoinMatch}
+                  onChange={(e) => setExtendJoinMatch(e.target.checked)}
+                  className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
+                />
+                <label htmlFor="extendJoinMatch" className="text-sm text-primary-800 cursor-pointer">
+                  {t("match.joinAutomatically", "Entrar automaticamente na partida")}
+                </label>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowExtendModal(false)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+              >
+                {t("app.cancel")}
+              </button>
+              <button
+                onClick={() => extendMutation.mutate()}
+                disabled={extendMutation.isPending}
+                className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-medium disabled:opacity-50"
+              >
+                {extendMutation.isPending ? t("app.loading") : t("app.save")}
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Transfer Ownership Modal */}
       {showTransferModal && (
@@ -518,29 +664,31 @@ export default function MatchDetail() {
               {t("match.selectNewOwner", "Selecione o novo organizador:")}
             </p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {confirmedPlayers.map((player) => (
-                <button
-                  key={player.id}
-                  onClick={() => setSelectedNewOwner(player.user_id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
-                    selectedNewOwner === player.user_id
-                      ? "border-primary-500 bg-primary-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                    <Users className="w-5 h-5 text-primary-600" />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="font-medium text-gray-900">
-                      {player.profile.name || player.profile.id}
-                    </p>
-                  </div>
-                  {selectedNewOwner === player.user_id && (
-                    <CheckCircle className="w-5 h-5 text-primary-600" />
-                  )}
-                </button>
-              ))}
+              {confirmedPlayers
+                .filter((p) => p.user_id !== user?.id)
+                .map((player) => (
+                  <button
+                    key={player.id}
+                    onClick={() => setSelectedNewOwner(player.user_id)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                      selectedNewOwner === player.user_id
+                        ? "border-primary-500 bg-primary-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-primary-600" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-gray-900">
+                        {player.profile.name || player.profile.id}
+                      </p>
+                    </div>
+                    {selectedNewOwner === player.user_id && (
+                      <CheckCircle className="w-5 h-5 text-primary-600" />
+                    )}
+                  </button>
+                ))}
             </div>
             <div className="flex gap-3">
               <button
@@ -560,6 +708,94 @@ export default function MatchDetail() {
                 {transferOwnershipMutation.isPending
                   ? t("app.loading")
                   : t("app.confirm")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Forfeit + Transfer Modal */}
+      {showForfeitModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {t("match.forfeit", "Desistir da partida")}
+            </h2>
+            <p className="text-sm text-gray-500">
+              {t("match.transferBeforeForfeit", "Você é o organizador. Antes de desistir, escolha um novo organizador:")}
+            </p>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {confirmedPlayers
+                .filter((p) => p.user_id !== user?.id)
+                .map((player) => (
+                  <button
+                    key={player.id}
+                    onClick={() => setSelectedNewOwner(player.user_id)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                      selectedNewOwner === player.user_id
+                        ? "border-primary-500 bg-primary-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-primary-600" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-gray-900">
+                        {player.profile.name || player.profile.id}
+                      </p>
+                    </div>
+                    {selectedNewOwner === player.user_id && (
+                      <CheckCircle className="w-5 h-5 text-primary-600" />
+                    )}
+                  </button>
+                ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowForfeitModal(false)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+              >
+                {t("app.cancel")}
+              </button>
+              <button
+                onClick={handleTransferAndForfeit}
+                disabled={!selectedNewOwner || transferOwnershipMutation.isPending}
+                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium disabled:opacity-50"
+              >
+                {transferOwnershipMutation.isPending
+                  ? t("app.loading")
+                  : t("match.forfeit")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Match Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              {t("match.delete", "Excluir partida")}
+            </h2>
+            <p className="text-sm text-gray-500">
+              {t("match.deleteConfirm", "Tem certeza? Esta ação não pode ser desfeita.")}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+              >
+                {t("app.cancel")}
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? t("app.loading") : t("app.delete")}
               </button>
             </div>
           </div>

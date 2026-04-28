@@ -1,17 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { Calendar, Users } from "lucide-react";
 
 export default function Matches() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const { data: myMatches } = useQuery({
     queryKey: ["my-matches"],
     queryFn: async () => {
       const { data } = await supabase
         .from("match_players")
-        .select("*, matches(*, venues(name))")
+        .select("*, matches(*, venues(name), match_players(count))")
         .eq("status", "confirmed")
         .order("joined_at", { ascending: false });
       return data || [];
@@ -25,17 +27,19 @@ export default function Matches() {
       <div className="space-y-3">
         {myMatches?.map((entry) => {
           const match = entry.matches;
+          const playerCount = match.match_players?.[0]?.count || 0;
           return (
             <div
               key={entry.id}
-              className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm"
+              onClick={() => navigate(`/matches/${match.id}`)}
+              className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm active:scale-[0.98] transition-transform cursor-pointer"
             >
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-primary-600" />
                     <span className="font-medium text-gray-900">
-                      {new Date(match.start_time).toLocaleDateString("pt-BR", {
+                      {new Date(match.start_time).toLocaleDateString(undefined, {
                         weekday: "short",
                         day: "numeric",
                         month: "short",
@@ -51,7 +55,9 @@ export default function Matches() {
                 </div>
                 <div className="flex items-center gap-1 text-sm text-gray-600">
                   <Users className="w-4 h-4" />
-                  <span>?/{match.max_players}</span>
+                  <span>
+                    {playerCount}/{match.max_players}
+                  </span>
                 </div>
               </div>
             </div>

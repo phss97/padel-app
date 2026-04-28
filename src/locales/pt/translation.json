@@ -17,7 +17,8 @@
     "none": "Nenhum",
     "yes": "Sim",
     "no": "Não",
-    "back": "Voltar"
+    "back": "Voltar",
+    "goToGroup": "Ir para o grupo"
   },
   "nav": {
     "groups": "Grupos",
@@ -31,11 +32,20 @@
     "register": "Cadastrar",
     "email": "E-mail",
     "password": "Senha",
+    "confirmPassword": "Confirmar senha",
     "magicLink": "Enviar link mágico",
+    "sendMagicLink": "Enviar link",
     "magicLinkSent": "Link enviado! Verifique seu e-mail.",
     "google": "Entrar com Google",
     "or": "ou",
-    "subtitle": "Organize suas partidas de padel"
+    "subtitle": "Organize suas partidas de padel",
+    "noAccount": "Não tem conta? Cadastre-se",
+    "hasAccount": "Já tem conta? Entrar",
+    "signIn": "Entrar",
+    "signUp": "Criar conta",
+    "signUpSuccess": "Conta criada! Você já pode entrar.",
+    "passwordsDontMatch": "As senhas não coincidem.",
+    "loginToJoin": "Faça login para entrar no grupo"
   },
   "dashboard": {
     "upcomingMatches": "partidas agendadas",
@@ -63,6 +73,7 @@
     "noUpcoming": "Nenhuma partida agendada",
     "noPast": "Nenhuma partida anterior",
     "copyLink": "Copiar link",
+    "linkCopied": "Link copiado!",
     "expiresAt": "Expira em",
     "generateCode": "Gerar código de convite",
     "joinGroup": "Entrar no grupo",
@@ -70,7 +81,28 @@
     "invalidCode": "Código de convite inválido",
     "notFound": "Grupo não encontrado",
     "codeExpired": "O código pode ter expirado ou o grupo não existe mais",
-    "inviteExpired": "Este convite expirou"
+    "inviteExpired": "Este convite expirou",
+    "info": "Informações do grupo",
+    "defaultVenue": "Quadra padrão",
+    "max1h": "Max 1h",
+    "max2h": "Max 2h",
+    "max3h": "Max 3h+",
+    "saved": "Salvo!",
+    "saveError": "Erro ao salvar",
+    "admin": "Admin",
+    "member": "Membro",
+    "promote": "Promover",
+    "demote": "Rebaixar",
+    "remove": "Remover",
+    "dangerZone": "Zona de perigo",
+    "deleteWarning": "Desativar o grupo remove-o da lista. Os dados históricos são preservados.",
+    "deactivate": "Desativar grupo",
+    "confirmDeactivate": "Tem certeza? Esta ação não pode ser desfeita.",
+    "confirm": "Sim, desativar",
+    "alreadyMember": "Você já é membro deste grupo",
+    "joined": "Você entrou no grupo!",
+    "loginToJoin": "Faça login para entrar no grupo",
+    "goToGroup": "Ir para o grupo"
   },
   "match": {
     "create": "Criar Partida",
@@ -92,7 +124,6 @@
     "date": "Data",
     "time": "Horário de início",
     "duration": "Duração",
-    "players": "jogadores",
     "optional": "opcional",
     "joinAutomatically": "Entrar automaticamente na partida",
     "perPerson": "por pessoa",
@@ -109,6 +140,23 @@
     "payments": "Pagamentos",
     "markAsPaid": "Marcar como pago",
     "totalCollected": "Total arrecadado",
-    "totalCost": "Custo total"
+    "totalCost": "Custo total",
+    "extendDirection": "Direção",
+    "extendBefore": "Antes",
+    "extendAfter": "Depois",
+    "transferBeforeForfeit": "Você é o organizador. Antes de desistir, escolha um novo organizador:",
+    "delete": "Excluir partida",
+    "deleteConfirm": "Tem certeza? Esta ação não pode ser desfeita.",
+    "noMatches": "Você não está participando de nenhuma partida"
+  },
+  "profile": {
+    "memberSince": "Membro desde",
+    "language": "Idioma",
+    "pushNotifications": "Notificações push",
+    "emailNotifications": "Notificações por email",
+    "displayName": "Nome / Apelido",
+    "namePlaceholder": "Seu nome",
+    "saved": "Salvo!",
+    "saveError": "Erro ao salvar"
   }
 }
