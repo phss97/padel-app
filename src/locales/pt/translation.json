@@ -172,6 +172,10 @@
     "displayName": "Nome / Apelido",
     "namePlaceholder": "Seu nome",
     "saved": "Salvo!",
-    "saveError": "Erro ao salvar"
+    "saveError": "Erro ao salvar",
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeDark": "Escuro",
+    "themeSystem": "Auto"
   }
 }

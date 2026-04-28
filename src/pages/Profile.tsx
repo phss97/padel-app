@@ -82,7 +82,7 @@ export default function Profile() {
               <p className="text-sm text-muted-foreground">
                 {t("profile.memberSince", "Membro desde")}{" "}
                 {profile?.created_at
-                  ? new Date(profile.created_at).toLocaleDateString()
+                  ? new Date(profile.created_at).toLocaleDateString(i18n.language)
                   : "..."}
               </p>
             </div>

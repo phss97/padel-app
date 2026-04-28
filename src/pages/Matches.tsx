@@ -6,7 +6,7 @@ import { Calendar, Users } from "lucide-react";
 import { formatMatchDate, formatMatchTime } from "../lib/dateUtils";
 
 export default function Matches() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
 
   const { data: myMatches } = useQuery({
@@ -44,7 +44,7 @@ export default function Matches() {
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-primary" />
                     <span className="font-medium text-foreground">
-                      {formatMatchDate(match.start_time)} {formatMatchTime(match.start_time)}
+                      {formatMatchDate(match.start_time, i18n.language)} {formatMatchTime(match.start_time, i18n.language)}
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">{match.venues?.name}</p>

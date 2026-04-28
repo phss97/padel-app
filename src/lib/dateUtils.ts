@@ -17,9 +17,10 @@ export function formatMatchLongDate(date: Date | string, locale?: string): strin
   });
 }
 
-export function formatMatchTime(date: Date | string): string {
+export function formatMatchTime(date: Date | string, locale?: string): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const isPt = locale?.toLowerCase().startsWith("pt");
+  return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: !isPt });
 }
 
 export function toDateInputValue(date: Date | string): string {

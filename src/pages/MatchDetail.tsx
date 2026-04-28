@@ -34,7 +34,7 @@ export default function MatchDetail() {
   const { id: matchId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const [error, setError] = useState("");
@@ -462,13 +462,13 @@ export default function MatchDetail() {
         <div className="flex items-center gap-3">
           <Calendar className="w-5 h-5 text-primary" />
           <span className="text-foreground font-medium">
-            {formatMatchLongDate(match.start_time)}
+            {formatMatchLongDate(match.start_time, i18n.language)}
           </span>
         </div>
         <div className="flex items-center gap-3">
           <Clock className="w-5 h-5 text-primary" />
           <span className="text-foreground">
-            {formatMatchTime(match.start_time)} - {formatMatchTime(match.end_time)}
+            {formatMatchTime(match.start_time, i18n.language)} - {formatMatchTime(match.end_time, i18n.language)}
           </span>
         </div>
         <div className="flex items-center gap-3">

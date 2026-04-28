@@ -172,6 +172,10 @@
     "displayName": "Name / Nickname",
     "namePlaceholder": "Your name",
     "saved": "Saved!",
-    "saveError": "Error saving"
+    "saveError": "Error saving",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "Auto"
   }
 }

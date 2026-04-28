@@ -28,7 +28,7 @@ type UpcomingFilter = "all" | "available" | "full" | "not-joined";
 export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const [activeTab, setActiveTab] = useState<TabType>("upcoming");
@@ -333,13 +333,13 @@ export default function GroupDetail() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="w-4 h-4 text-primary" />
                   <span className="font-medium">
-                    {formatMatchDate(match.start_time)}
+                    {formatMatchDate(match.start_time, i18n.language)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="w-4 h-4" />
                   <span>
-                    {formatMatchTime(match.start_time)} - {formatMatchTime(match.end_time)}
+                    {formatMatchTime(match.start_time, i18n.language)} - {formatMatchTime(match.end_time, i18n.language)}
                   </span>
                 </div>
                 {match.court_cost && (
