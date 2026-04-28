@@ -62,7 +62,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: `${window.location.origin}/groups`,
       },
     });
     set({ isLoading: false });
@@ -75,7 +75,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: `${window.location.origin}/groups`,
       },
     });
     set({ isLoading: false });
@@ -97,7 +97,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: `${window.location.origin}/groups`,
       },
     });
     set({ isLoading: false });
@@ -107,7 +107,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   resetPassword: async (email) => {
     set({ isLoading: true });
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/dashboard`,
+      redirectTo: `${window.location.origin}/`,
     });
     set({ isLoading: false });
     return { error: error || undefined };

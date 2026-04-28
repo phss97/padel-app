@@ -1,10 +1,12 @@
 import type { FC, FormEvent } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../lib/supabase";
 import { useAuthStore } from "../stores/authStore";
 import { LogIn, Mail, Globe, Lock, KeyRound } from "lucide-react";
 
-type AuthMode = "magic" | "signin" | "signup" | "forgot";
+type AuthMode = "magic" | "signin" | "signup" | "forgot" | "reset";
 
 type MessageType = "info" | "success" | "error";
 
@@ -23,6 +25,19 @@ const Login: FC = () => {
   const [authMode, setAuthMode] = useState<AuthMode>("magic");
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<MessageType>("info");
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes("type=recovery")) {
+      setAuthMode("reset");
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          setEmail(data.session.user.email || "");
+        }
+      });
+    }
+  }, []);
 
   const handleMagicLink = async (e: FormEvent) => {
     e.preventDefault();
@@ -84,6 +99,25 @@ const Login: FC = () => {
     }
   };
 
+  const handleSetNewPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setMessage("");
+    if (password !== confirmPassword) {
+      setMessageType("error");
+      setMessage(t("auth.passwordsDontMatch", "As senhas não coincidem."));
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) {
+      setMessageType("error");
+      setMessage(error.message);
+    } else {
+      setMessageType("success");
+      setMessage(t("auth.passwordUpdated", "Senha atualizada! Redirecionando..."));
+      setTimeout(() => navigate("/groups"), 1500);
+    }
+  };
+
   const toggleLanguage = () => {
     i18n.changeLanguage(i18n.language === "pt" ? "en" : "pt");
   };
@@ -119,21 +153,23 @@ const Login: FC = () => {
           </div>
 
           {/* Mode toggle */}
-          <div className="flex bg-muted rounded-xl p-1">
-            {modeTabs.map((mode) => (
-              <button
-                key={mode.key}
-                onClick={() => switchMode(mode.key)}
-                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  authMode === mode.key
-                    ? "bg-surface text-primary shadow-sm"
-                    : "text-muted-foreground hover:text-muted-foreground"
-                }`}
-              >
-                {t(mode.labelKey, mode.fallback)}
-              </button>
-            ))}
-          </div>
+          {authMode !== "reset" && (
+            <div className="flex bg-muted rounded-xl p-1">
+              {modeTabs.map((mode) => (
+                <button
+                  key={mode.key}
+                  onClick={() => switchMode(mode.key)}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    authMode === mode.key
+                      ? "bg-surface text-primary shadow-sm"
+                      : "text-muted-foreground hover:text-muted-foreground"
+                  }`}
+                >
+                  {t(mode.labelKey, mode.fallback)}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Magic Link Form */}
           {authMode === "magic" && (
@@ -280,20 +316,60 @@ const Login: FC = () => {
             </form>
           )}
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-background text-muted-foreground">{t("auth.or")}</span>
-            </div>
-          </div>
+          {/* Set New Password (recovery token detected) */}
+          {authMode === "reset" && (
+            <form onSubmit={handleSetNewPassword} className="space-y-4">
+              <p className="text-sm text-muted-foreground text-center">
+                {t("auth.setNewPassword", "Digite sua nova senha")}
+              </p>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <input
+                  type="password"
+                  required
+                  placeholder={t("auth.password", "Senha")}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <div className="relative">
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <input
+                  type="password"
+                  required
+                  placeholder={t("auth.confirmPassword", "Confirmar senha")}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors"
+              >
+                {isLoading ? t("app.loading") : t("auth.updatePassword", "Atualizar senha")}
+              </button>
+            </form>
+          )}
 
-          <button
-            onClick={() => signInWithGoogle()}
-            disabled={isLoading}
-            className="w-full py-3 bg-surface border border-border hover:bg-background disabled:opacity-50 text-muted-foreground font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-          >
+          {authMode !== "reset" && (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-background text-muted-foreground">{t("auth.or")}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => signInWithGoogle()}
+                disabled={isLoading}
+                className="w-full py-3 bg-surface border border-border hover:bg-background disabled:opacity-50 text-muted-foreground font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
@@ -314,6 +390,8 @@ const Login: FC = () => {
             </svg>
             {t("auth.google")}
           </button>
+          </>
+        )}
 
           {message && (
             <div

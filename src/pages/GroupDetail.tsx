@@ -36,7 +36,8 @@ export default function GroupDetail() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showCreateMatchModal, setShowCreateMatchModal] = useState(false);
   const [inviteError, setInviteError] = useState("");
-  const { copied, copy } = useClipboard();
+  const { copied: copiedPermanent, copy: copyPermanent } = useClipboard();
+  const { copied: copiedTemporary, copy: copyTemporary } = useClipboard();
 
   const { data: group } = useQuery<Group>({
     queryKey: ["group", id],
@@ -399,16 +400,16 @@ export default function GroupDetail() {
                 <button
                   onClick={async () => {
                     const url = `${window.location.origin}/groups/join?perm=${group.permanent_invite_code}`;
-                    const ok = await copy(url);
+                    const ok = await copyPermanent(url);
                     if (!ok) window.prompt(t("group.copyPrompt", "Copie o link:"), url);
                   }}
                   className={`w-full py-2.5 rounded-xl font-medium text-sm transition-colors ${
-                    copied
+                    copiedPermanent
                       ? "bg-green-600 text-white"
-                      : "bg-muted text-white"
+                      : "bg-primary text-white"
                   }`}
                 >
-                  {copied
+                  {copiedPermanent
                     ? t("group.linkCopied", "Link copiado!")
                     : t("group.copyLink", "Copiar link")}
                 </button>
@@ -436,16 +437,16 @@ export default function GroupDetail() {
                   <button
                     onClick={async () => {
                       const url = `${window.location.origin}/groups/join?code=${group.invite_code}`;
-                      const ok = await copy(url);
+                      const ok = await copyTemporary(url);
                       if (!ok) window.prompt(t("group.copyPrompt", "Copie o link:"), url);
                     }}
                     className={`w-full py-2.5 rounded-xl font-medium text-sm transition-colors ${
-                      copied
+                      copiedTemporary
                         ? "bg-green-600 text-white"
                         : "bg-primary text-white"
                     }`}
                   >
-                    {copied
+                    {copiedTemporary
                       ? t("group.linkCopied", "Link copiado!")
                       : t("group.copyLink", "Copiar link")}
                   </button>
