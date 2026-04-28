@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
+import { useAuthStore } from "../stores/authStore";
 import {
   ArrowLeft,
   Users,
@@ -25,6 +26,7 @@ export default function GroupDetail() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const user = useAuthStore((state) => state.user);
   const [activeTab, setActiveTab] = useState<TabType>("upcoming");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showCreateMatchModal, setShowCreateMatchModal] = useState(false);
@@ -118,9 +120,7 @@ export default function GroupDetail() {
   });
 
   const isAdmin = members?.some(
-    (m) =>
-      m.user_id === (supabase.auth.getUser() as unknown as { data: { user: { id: string } } }).data.user?.id &&
-      m.role === "admin"
+    (m) => m.user_id === user?.id && m.role === "admin"
   );
 
   const tabs: { key: TabType; label: string }[] = [

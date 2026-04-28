@@ -2,12 +2,18 @@ import type { FC, FormEvent } from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../stores/authStore";
-import { LogIn, Mail, Globe } from "lucide-react";
+import { LogIn, Mail, Globe, Lock, KeyRound } from "lucide-react";
+
+type AuthMode = "magic" | "signin" | "signup";
 
 const Login: FC = () => {
   const { t, i18n } = useTranslation();
-  const { signInWithEmail, signInWithGoogle, isLoading } = useAuthStore();
+  const { signInWithEmail, signUpWithEmail, signInWithPassword, signInWithGoogle, isLoading } =
+    useAuthStore();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [authMode, setAuthMode] = useState<AuthMode>("magic");
   const [message, setMessage] = useState("");
 
   const handleMagicLink = async (e: FormEvent) => {
@@ -22,8 +28,42 @@ const Login: FC = () => {
     }
   };
 
+  const handlePasswordSignIn = async (e: FormEvent) => {
+    e.preventDefault();
+    setMessage("");
+    const { error } = await signInWithPassword(email, password);
+    if (error) {
+      setMessage(error.message);
+    }
+  };
+
+  const handleSignUp = async (e: FormEvent) => {
+    e.preventDefault();
+    setMessage("");
+    if (password !== confirmPassword) {
+      setMessage(t("auth.passwordsDontMatch", "As senhas não coincidem."));
+      return;
+    }
+    const { error } = await signUpWithEmail(email, password);
+    if (error) {
+      setMessage(error.message);
+    } else {
+      setMessage(
+        t("auth.signUpSuccess", "Conta criada! Verifique seu e-mail para confirmar.")
+      );
+      setAuthMode("signin");
+      setPassword("");
+      setConfirmPassword("");
+    }
+  };
+
   const toggleLanguage = () => {
     i18n.changeLanguage(i18n.language === "pt" ? "en" : "pt");
+  };
+
+  const switchMode = (mode: AuthMode) => {
+    setAuthMode(mode);
+    setMessage("");
   };
 
   return (
@@ -50,27 +90,130 @@ const Login: FC = () => {
             </p>
           </div>
 
-          <form onSubmit={handleMagicLink} className="space-y-4">
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="email"
-                required
-                placeholder={t("auth.email")}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
+          {/* Mode toggle */}
+          <div className="flex bg-gray-100 rounded-xl p-1">
+            {(
+              [
+                { key: "magic" as AuthMode, label: t("auth.magicLink", "Link mágico") },
+                { key: "signin" as AuthMode, label: t("auth.password", "Senha") },
+              ] as { key: AuthMode; label: string }[]
+            ).map((mode) => (
+              <button
+                key={mode.key}
+                onClick={() => switchMode(mode.key)}
+                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  authMode === mode.key
+                    ? "bg-white text-primary-600 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors"
+          {/* Magic Link Form */}
+          {authMode === "magic" && (
+            <form onSubmit={handleMagicLink} className="space-y-4">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="email"
+                  required
+                  placeholder={t("auth.email")}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors"
+              >
+                {isLoading ? t("app.loading") : t("auth.sendMagicLink", "Enviar link")}
+              </button>
+            </form>
+          )}
+
+          {/* Password Sign In / Sign Up */}
+          {(authMode === "signin" || authMode === "signup") && (
+            <form
+              onSubmit={authMode === "signin" ? handlePasswordSignIn : handleSignUp}
+              className="space-y-4"
             >
-              {isLoading ? t("app.loading") : t("auth.magicLink")}
-            </button>
-          </form>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="email"
+                  required
+                  placeholder={t("auth.email")}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="password"
+                  required
+                  placeholder={t("auth.password", "Senha")}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+
+              {authMode === "signup" && (
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="password"
+                    required
+                    placeholder={t("auth.confirmPassword", "Confirmar senha")}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors"
+              >
+                {isLoading
+                  ? t("app.loading")
+                  : authMode === "signin"
+                  ? t("auth.signIn", "Entrar")
+                  : t("auth.signUp", "Criar conta")}
+              </button>
+
+              <div className="text-center">
+                {authMode === "signin" ? (
+                  <button
+                    type="button"
+                    onClick={() => switchMode("signup")}
+                    className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                  >
+                    {t("auth.noAccount", "Não tem conta? Cadastre-se")}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => switchMode("signin")}
+                    className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                  >
+                    {t("auth.hasAccount", "Já tem conta? Entrar")}
+                  </button>
+                )}
+              </div>
+            </form>
+          )}
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -108,11 +251,15 @@ const Login: FC = () => {
           </button>
 
           {message && (
-            <div className={`p-3 rounded-lg text-sm text-center ${
-              message.includes("Link") || message.includes("sent")
-                ? "bg-green-50 text-green-700"
-                : "bg-red-50 text-red-700"
-            }`}>
+            <div
+              className={`p-3 rounded-lg text-sm text-center ${
+                message.includes("Link") ||
+                message.includes("sent") ||
+                message.includes("Conta criada")
+                  ? "bg-green-50 text-green-700"
+                  : "bg-red-50 text-red-700"
+              }`}
+            >
               {message}
             </div>
           )}
