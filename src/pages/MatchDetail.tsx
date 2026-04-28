@@ -12,7 +12,6 @@ import {
   Users,
   CheckCircle,
   Plus,
-  Settings,
   AlertTriangle,
   DollarSign,
   Trash2,
@@ -37,7 +36,6 @@ export default function MatchDetail() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const [error, setError] = useState("");
-  const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>("");
 
   // Extend modal states
@@ -177,7 +175,6 @@ export default function MatchDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });
-      setShowTransferModal(false);
       setError("");
     },
     onError: (err: Error) => setError(err.message),
@@ -445,12 +442,6 @@ export default function MatchDetail() {
                   className="p-2 hover:bg-gray-100 rounded-lg"
                 >
                   <Pencil className="w-5 h-5 text-gray-600" />
-                </button>
-                <button
-                  onClick={() => setShowTransferModal(true)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <Settings className="w-5 h-5 text-gray-600" />
                 </button>
                 <button
                   onClick={() => setShowDeleteModal(true)}
@@ -805,67 +796,6 @@ export default function MatchDetail() {
         </div>
       )}
 
-      {/* Transfer Ownership Modal */}
-      {showTransferModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">
-              {t("match.transferOwnership", "Transferir partida")}
-            </h2>
-            <p className="text-sm text-gray-500">
-              {t("match.selectNewOwner", "Selecione o novo organizador:")}
-            </p>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {confirmedPlayers
-                .filter((p) => p.user_id !== user?.id)
-                .map((player) => (
-                  <button
-                    key={player.id}
-                    onClick={() => setSelectedNewOwner(player.user_id)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
-                      selectedNewOwner === player.user_id
-                        ? "border-primary-500 bg-primary-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                      <Users className="w-5 h-5 text-primary-600" />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="font-medium text-gray-900">
-                        {player.profile.name || player.profile.id}
-                      </p>
-                    </div>
-                    {selectedNewOwner === player.user_id && (
-                      <CheckCircle className="w-5 h-5 text-primary-600" />
-                    )}
-                  </button>
-                ))}
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowTransferModal(false)}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
-              >
-                {t("app.cancel")}
-              </button>
-              <button
-                onClick={() =>
-                  selectedNewOwner &&
-                  transferOwnershipMutation.mutate(selectedNewOwner)
-                }
-                disabled={!selectedNewOwner || transferOwnershipMutation.isPending}
-                className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-medium disabled:opacity-50"
-              >
-                {transferOwnershipMutation.isPending
-                  ? t("app.loading")
-                  : t("app.confirm")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Forfeit + Transfer Modal */}
       {showForfeitModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
@@ -994,9 +924,65 @@ export default function MatchDetail() {
                 />
               </div>
             </div>
+
+            {/* Transfer Ownership section inside edit modal */}
+            <div className="border-t border-gray-200 pt-4 space-y-3">
+              <h3 className="text-sm font-medium text-gray-700">
+                {t("match.transferOwnership", "Transferir partida")}
+              </h3>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {confirmedPlayers
+                  .filter((p) => p.user_id !== user?.id)
+                  .map((player) => (
+                    <button
+                      key={player.id}
+                      onClick={() => setSelectedNewOwner(player.user_id)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                        selectedNewOwner === player.user_id
+                          ? "border-primary-500 bg-primary-50"
+                          : "border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                        <Users className="w-5 h-5 text-primary-600" />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="font-medium text-gray-900">
+                          {player.profile.name || player.profile.id}
+                        </p>
+                      </div>
+                      {selectedNewOwner === player.user_id && (
+                        <CheckCircle className="w-5 h-5 text-primary-600" />
+                      )}
+                    </button>
+                  ))}
+              </div>
+              {selectedNewOwner && (
+                <button
+                  onClick={() => {
+                    transferOwnershipMutation.mutate(selectedNewOwner, {
+                      onSuccess: () => {
+                        setSelectedNewOwner("");
+                        setShowEditModal(false);
+                      },
+                    });
+                  }}
+                  disabled={transferOwnershipMutation.isPending}
+                  className="w-full py-2.5 bg-primary-600 text-white rounded-xl font-medium disabled:opacity-50"
+                >
+                  {transferOwnershipMutation.isPending
+                    ? t("app.loading")
+                    : t("app.confirm")}
+                </button>
+              )}
+            </div>
+
             <div className="flex gap-3">
               <button
-                onClick={() => setShowEditModal(false)}
+                onClick={() => {
+                  setShowEditModal(false);
+                  setSelectedNewOwner("");
+                }}
                 className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
               >
                 {t("app.cancel")}

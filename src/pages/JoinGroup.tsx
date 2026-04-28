@@ -21,7 +21,7 @@ export default function JoinGroup() {
       if (!code) return null;
       const { data, error } = await supabase
         .from("groups")
-        .select("*, venues(name)")
+        .select("*")
         .eq("invite_code", code)
         .eq("is_active", true)
         .single();
@@ -156,9 +156,6 @@ export default function JoinGroup() {
               <h2 className="text-xl font-bold text-gray-900">
                 {group.name}
               </h2>
-              {group.venues?.name && (
-                <p className="text-gray-500">{group.venues.name}</p>
-              )}
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -81,7 +81,7 @@ export default function GroupSettings() {
     enabled: !!id,
   });
 
-  useState(() => {
+  useEffect(() => {
     if (group) {
       setEditName(group.name || "");
       setEditDescription(group.description || "");
@@ -90,7 +90,7 @@ export default function GroupSettings() {
       setEditMax2h(group.max_players_2h || 6);
       setEditMax3h(group.max_players_3h_plus || 8);
     }
-  });
+  }, [group]);
 
   const updateGroup = useMutation({
     mutationFn: async () => {
