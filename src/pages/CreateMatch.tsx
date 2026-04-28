@@ -71,31 +71,17 @@ export default function CreateMatch() {
 
   const checkAdjacent = async (startDateTime: Date, endDateTime: Date) => {
     if (!venueId) return null;
-    const dayStart = new Date(startDateTime);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
-
     const { data, error: qError } = await supabase
       .from("matches")
       .select("*")
       .eq("venue_id", venueId)
       .eq("status", "scheduled")
-      .gte("start_time", dayStart.toISOString())
-      .lt("start_time", dayEnd.toISOString())
-      .limit(10);
+      .lte("start_time", endDateTime.toISOString())
+      .gte("end_time", startDateTime.toISOString())
+      .limit(1);
 
     if (qError || !data || data.length === 0) return null;
-
-    const sStart = startDateTime.getTime();
-    const sEnd = endDateTime.getTime();
-    return (
-      (data as Match[]).find((m) => {
-        const mStart = new Date(m.start_time).getTime();
-        const mEnd = new Date(m.end_time).getTime();
-        return mEnd === sStart || mStart === sEnd;
-      }) || null
-    );
+    return data[0] as Match;
   };
 
   const createMatch = useMutation({
