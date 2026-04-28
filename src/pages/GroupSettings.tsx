@@ -15,6 +15,7 @@ import {
   Save,
 } from "lucide-react";
 import type { Group, Venue } from "../types";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 interface MemberWithProfile {
   id: string;
@@ -39,6 +40,7 @@ export default function GroupSettings() {
   const [editMax1h, setEditMax1h] = useState(4);
   const [editMax2h, setEditMax2h] = useState(6);
   const [editMax3h, setEditMax3h] = useState(8);
+  const [hasHydrated, setHasHydrated] = useState(false);
 
   const { data: group, isLoading } = useQuery<Group>({
     queryKey: ["group", id],
@@ -82,15 +84,16 @@ export default function GroupSettings() {
   });
 
   useEffect(() => {
-    if (group) {
+    if (group && !hasHydrated) {
       setEditName(group.name || "");
       setEditDescription(group.description || "");
       setEditDefaultVenueId(group.default_venue_id || "");
       setEditMax1h(group.max_players_1h || 4);
       setEditMax2h(group.max_players_2h || 6);
       setEditMax3h(group.max_players_3h_plus || 8);
+      setHasHydrated(true);
     }
-  }, [group]);
+  }, [group, hasHydrated]);
 
   const updateGroup = useMutation({
     mutationFn: async () => {
@@ -167,8 +170,8 @@ export default function GroupSettings() {
   if (!id) return null;
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -178,16 +181,16 @@ export default function GroupSettings() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div className="min-h-screen bg-background">
+      <div className="bg-surface border-b border-border sticky top-0 z-10">
         <div className="flex items-center gap-3 p-4">
           <button
             onClick={() => navigate(-1)}
-            className="p-2 -ml-2 hover:bg-gray-100 rounded-lg"
+            className="p-2 -ml-2 hover:bg-muted rounded-lg"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
           </button>
-          <h1 className="text-lg font-semibold text-gray-900">
+          <h1 className="text-lg font-semibold text-foreground">
             {t("group.settings", "Configurações")}
           </h1>
         </div>
@@ -195,43 +198,43 @@ export default function GroupSettings() {
 
       <div className="p-4 space-y-6">
         {/* Group Info Edit */}
-        <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">
+        <div className="bg-surface rounded-xl border border-border p-4 space-y-4">
+          <h2 className="text-base font-semibold text-foreground">
             {t("group.info", "Informações do grupo")}
           </h2>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 {t("group.name", "Nome do grupo")}
               </label>
               <input
                 type="text"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 {t("group.description", "Descrição")}
               </label>
               <textarea
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 rows={2}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
                 {t("group.defaultVenue", "Quadra padrão")}
               </label>
               <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <select
                   value={editDefaultVenueId}
                   onChange={(e) => setEditDefaultVenueId(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="">{t("group.noDefaultVenue")}</option>
                   {venues?.map((v) => (
@@ -244,7 +247,7 @@ export default function GroupSettings() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   {t("group.max1h", "Max 1h")}
                 </label>
                 <input
@@ -252,11 +255,11 @@ export default function GroupSettings() {
                   min={2}
                   value={editMax1h}
                   onChange={(e) => setEditMax1h(parseInt(e.target.value) || 4)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   {t("group.max2h", "Max 2h")}
                 </label>
                 <input
@@ -264,11 +267,11 @@ export default function GroupSettings() {
                   min={2}
                   value={editMax2h}
                   onChange={(e) => setEditMax2h(parseInt(e.target.value) || 6)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   {t("group.max3h", "Max 3h+")}
                 </label>
                 <input
@@ -276,44 +279,56 @@ export default function GroupSettings() {
                   min={2}
                   value={editMax3h}
                   onChange={(e) => setEditMax3h(parseInt(e.target.value) || 8)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             </div>
             <button
-              onClick={() => updateGroup.mutate()}
+              onClick={() => {
+                if (
+                  editName.trim() === (group?.name || "") &&
+                  editDescription.trim() === (group?.description || "") &&
+                  editDefaultVenueId === (group?.default_venue_id || "") &&
+                  editMax1h === (group?.max_players_1h || 4) &&
+                  editMax2h === (group?.max_players_2h || 6) &&
+                  editMax3h === (group?.max_players_3h_plus || 8)
+                ) {
+                  return;
+                }
+                updateGroup.mutate();
+              }}
               disabled={updateGroup.isPending}
-              className="w-full py-2.5 bg-primary-600 text-white rounded-xl font-medium disabled:opacity-50 hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-primary text-white rounded-xl font-medium disabled:opacity-50 hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
             >
               <Save className="w-4 h-4" />
               {updateGroup.isPending ? t("app.loading") : t("app.save")}
             </button>
             {saveMessage && (
-              <p className="text-sm text-green-600 text-center">{saveMessage}</p>
+              <p className="text-sm text-green-500 text-center">{saveMessage}</p>
             )}
           </div>
         </div>
 
         {/* Members */}
-        <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary-600" />
+        <div className="bg-surface rounded-xl border border-border p-4 space-y-4">
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Users className="w-5 h-5 text-primary" />
             {t("group.members", "Membros")} ({members?.length || 0})
           </h2>
           <div className="space-y-2">
             {members?.map((member) => (
               <div
                 key={member.id}
-                className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl"
+                className="flex items-center gap-3 p-3 bg-background rounded-xl"
               >
-                <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Users className="w-5 h-5 text-primary-600" />
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Users className="w-5 h-5 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 truncate">
+                  <p className="font-medium text-foreground truncate">
                     {member.profile?.name || member.user_id}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     {member.role === "admin"
                       ? t("group.admin", "Admin")
                       : t("group.member", "Membro")}
@@ -329,7 +344,7 @@ export default function GroupSettings() {
                         })
                       }
                       disabled={updateMemberRole.isPending}
-                      className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                      className="p-2 hover:bg-muted/80 rounded-lg transition-colors"
                       title={
                         member.role === "admin"
                           ? t("group.demote", "Rebaixar")
@@ -339,15 +354,15 @@ export default function GroupSettings() {
                       <Shield
                         className={`w-4 h-4 ${
                           member.role === "admin"
-                            ? "text-gray-400"
-                            : "text-primary-600"
+                            ? "text-muted-foreground"
+                            : "text-primary"
                         }`}
                       />
                     </button>
                     <button
                       onClick={() => removeMember.mutate(member.id)}
                       disabled={removeMember.isPending}
-                      className="p-2 hover:bg-red-100 rounded-lg transition-colors"
+                      className="p-2 hover:bg-destructive/10 rounded-lg transition-colors"
                       title={t("group.remove", "Remover")}
                     >
                       <UserMinus className="w-4 h-4 text-red-500" />
@@ -360,12 +375,12 @@ export default function GroupSettings() {
         </div>
 
         {/* Danger Zone */}
-        <div className="bg-white rounded-xl border border-red-100 p-4 space-y-3">
-          <h3 className="text-sm font-medium text-red-700 flex items-center gap-2">
+        <div className="bg-surface rounded-xl border border-red-100 p-4 space-y-3">
+          <h3 className="text-sm font-medium text-destructive flex items-center gap-2">
             <AlertTriangle className="w-4 h-4" />
             {t("group.dangerZone", "Zona de perigo")}
           </h3>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             {t(
               "group.deleteWarning",
               "Desativar o grupo remove-o da lista. Os dados históricos são preservados."
@@ -374,21 +389,21 @@ export default function GroupSettings() {
           {!showDeleteConfirm ? (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="w-full py-3 border border-red-200 text-red-600 rounded-xl font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3 border border-destructive/20 text-destructive rounded-xl font-medium hover:bg-destructive/10 transition-colors flex items-center justify-center gap-2"
             >
               <Trash2 className="w-4 h-4" />
               {t("group.deactivate", "Desativar grupo")}
             </button>
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-red-600 font-medium">
+              <p className="text-sm text-destructive font-medium">
                 {t("group.confirmDeactivate", "Tem certeza? Esta ação não pode ser desfeita.")}
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => softDeleteGroup.mutate()}
                   disabled={softDeleteGroup.isPending}
-                  className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium disabled:opacity-50 hover:bg-red-700 transition-colors"
+                  className="flex-1 py-3 bg-destructive text-white rounded-xl font-medium disabled:opacity-50 hover:bg-destructive/90 transition-colors"
                 >
                   {softDeleteGroup.isPending
                     ? t("app.loading")
@@ -396,7 +411,7 @@ export default function GroupSettings() {
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                  className="flex-1 py-3 bg-muted text-muted-foreground rounded-xl font-medium hover:bg-muted/80 transition-colors"
                 >
                   {t("app.cancel")}
                 </button>

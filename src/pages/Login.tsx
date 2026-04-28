@@ -6,6 +6,13 @@ import { LogIn, Mail, Globe, Lock, KeyRound } from "lucide-react";
 
 type AuthMode = "magic" | "signin" | "signup";
 
+type MessageType = "info" | "success" | "error";
+
+const modeTabs: { key: AuthMode; labelKey: string; fallback: string }[] = [
+  { key: "magic", labelKey: "auth.magicLink", fallback: "Link mágico" },
+  { key: "signin", labelKey: "auth.password", fallback: "Senha" },
+];
+
 const Login: FC = () => {
   const { t, i18n } = useTranslation();
   const { signInWithEmail, signUpWithEmail, signInWithPassword, signInWithGoogle, isLoading } =
@@ -15,14 +22,17 @@ const Login: FC = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [authMode, setAuthMode] = useState<AuthMode>("magic");
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<MessageType>("info");
 
   const handleMagicLink = async (e: FormEvent) => {
     e.preventDefault();
     setMessage("");
     const { error } = await signInWithEmail(email);
     if (error) {
+      setMessageType("error");
       setMessage(error.message);
     } else {
+      setMessageType("success");
       setMessage(t("auth.magicLinkSent", "Link enviado! Verifique seu e-mail."));
       setEmail("");
     }
@@ -33,6 +43,7 @@ const Login: FC = () => {
     setMessage("");
     const { error } = await signInWithPassword(email, password);
     if (error) {
+      setMessageType("error");
       setMessage(error.message);
     }
   };
@@ -41,13 +52,16 @@ const Login: FC = () => {
     e.preventDefault();
     setMessage("");
     if (password !== confirmPassword) {
+      setMessageType("error");
       setMessage(t("auth.passwordsDontMatch", "As senhas não coincidem."));
       return;
     }
     const { error } = await signUpWithEmail(email, password);
     if (error) {
+      setMessageType("error");
       setMessage(error.message);
     } else {
+      setMessageType("success");
       setMessage(
         t("auth.signUpSuccess", "Conta criada! Verifique seu e-mail para confirmar.")
       );
@@ -64,16 +78,17 @@ const Login: FC = () => {
   const switchMode = (mode: AuthMode) => {
     setAuthMode(mode);
     setMessage("");
+    setMessageType("info");
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm space-y-8">
           <div className="flex justify-end">
             <button
               onClick={toggleLanguage}
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-muted-foreground"
             >
               <Globe className="w-4 h-4" />
               {i18n.language === "pt" ? "English" : "Português"}
@@ -81,33 +96,28 @@ const Login: FC = () => {
           </div>
 
           <div className="text-center space-y-2">
-            <div className="mx-auto w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg">
               <LogIn className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">{t("app.title")}</h1>
-            <p className="text-gray-500">
+            <h1 className="text-2xl font-bold text-foreground">{t("app.title")}</h1>
+            <p className="text-muted-foreground">
               {t("auth.subtitle", "Organize suas partidas de padel")}
             </p>
           </div>
 
           {/* Mode toggle */}
-          <div className="flex bg-gray-100 rounded-xl p-1">
-            {(
-              [
-                { key: "magic" as AuthMode, label: t("auth.magicLink", "Link mágico") },
-                { key: "signin" as AuthMode, label: t("auth.password", "Senha") },
-              ] as { key: AuthMode; label: string }[]
-            ).map((mode) => (
+          <div className="flex bg-muted rounded-xl p-1">
+            {modeTabs.map((mode) => (
               <button
                 key={mode.key}
                 onClick={() => switchMode(mode.key)}
                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
                   authMode === mode.key
-                    ? "bg-white text-primary-600 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-surface text-primary shadow-sm"
+                    : "text-muted-foreground hover:text-muted-foreground"
                 }`}
               >
-                {mode.label}
+                {t(mode.labelKey, mode.fallback)}
               </button>
             ))}
           </div>
@@ -116,21 +126,21 @@ const Login: FC = () => {
           {authMode === "magic" && (
             <form onSubmit={handleMagicLink} className="space-y-4">
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
                   type="email"
                   required
                   placeholder={t("auth.email")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors"
+                className="w-full py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors"
               >
                 {isLoading ? t("app.loading") : t("auth.sendMagicLink", "Enviar link")}
               </button>
@@ -144,39 +154,39 @@ const Login: FC = () => {
               className="space-y-4"
             >
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
                   type="email"
                   required
                   placeholder={t("auth.email")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
 
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
                   type="password"
                   required
                   placeholder={t("auth.password", "Senha")}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
 
               {authMode === "signup" && (
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
                     type="password"
                     required
                     placeholder={t("auth.confirmPassword", "Confirmar senha")}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
                 </div>
               )}
@@ -184,13 +194,11 @@ const Login: FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors"
+                className="w-full py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors"
               >
                 {isLoading
                   ? t("app.loading")
-                  : authMode === "signin"
-                  ? t("auth.signIn", "Entrar")
-                  : t("auth.signUp", "Criar conta")}
+                  : t(authMode === "signin" ? "auth.signIn" : "auth.signUp", authMode === "signin" ? "Entrar" : "Criar conta")}
               </button>
 
               <div className="text-center">
@@ -198,7 +206,7 @@ const Login: FC = () => {
                   <button
                     type="button"
                     onClick={() => switchMode("signup")}
-                    className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                    className="text-sm text-primary hover:text-primary/90 font-medium"
                   >
                     {t("auth.noAccount", "Não tem conta? Cadastre-se")}
                   </button>
@@ -206,7 +214,7 @@ const Login: FC = () => {
                   <button
                     type="button"
                     onClick={() => switchMode("signin")}
-                    className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                    className="text-sm text-primary hover:text-primary/90 font-medium"
                   >
                     {t("auth.hasAccount", "Já tem conta? Entrar")}
                   </button>
@@ -217,17 +225,17 @@ const Login: FC = () => {
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
+              <div className="w-full border-t border-border"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gray-50 text-gray-500">{t("auth.or")}</span>
+              <span className="px-2 bg-background text-muted-foreground">{t("auth.or")}</span>
             </div>
           </div>
 
           <button
             onClick={() => signInWithGoogle()}
             disabled={isLoading}
-            className="w-full py-3 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50 text-gray-700 font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+            className="w-full py-3 bg-surface border border-border hover:bg-background disabled:opacity-50 text-muted-foreground font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -253,11 +261,11 @@ const Login: FC = () => {
           {message && (
             <div
               className={`p-3 rounded-lg text-sm text-center ${
-                message.includes("Link") ||
-                message.includes("sent") ||
-                message.includes("Conta criada")
-                  ? "bg-green-50 text-green-700"
-                  : "bg-red-50 text-red-700"
+                messageType === "success"
+                  ? "bg-green-500/10 text-green-500"
+                  : messageType === "error"
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-muted text-muted-foreground"
               }`}
             >
               {message}

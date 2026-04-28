@@ -14,14 +14,36 @@ import Matches from "./pages/Matches";
 import Profile from "./pages/Profile";
 import BottomNav from "./components/BottomNav";
 import { useAuthStore } from "./stores/authStore";
+import { useAppStore } from "./stores/appStore";
+import { useEffect, useMemo } from "react";
 
 function App() {
   const user = useAuthStore((state) => state.user);
+  const theme = useAppStore((state) => state.theme);
+
+  const resolvedTheme = useMemo(() => {
+    if (theme !== "system") return theme;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
+  }, [resolvedTheme]);
+
+  useEffect(() => {
+    if (theme !== "system") return;
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const listener = (e: MediaQueryListEvent) => {
+      document.documentElement.classList.toggle("dark", e.matches);
+    };
+    mql.addEventListener("change", listener);
+    return () => mql.removeEventListener("change", listener);
+  }, [theme]);
 
   return (
     <AuthProvider>
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <main className="flex-1 pb-16">
+      <div className="min-h-screen bg-background flex flex-col">
+        <main className="flex-1 pb-20">
           <Routes>
             <Route path="/" element={<Login />} />
             <Route

@@ -13,6 +13,7 @@ import {
   Check,
   Users,
 } from "lucide-react";
+import { calculateMaxPlayers } from "../lib/matchUtils";
 import type { Venue, Group } from "../types";
 
 export default function CreateMatch() {
@@ -96,7 +97,6 @@ export default function CreateMatch() {
 
       if (matchError) throw matchError;
 
-      // Auto-check-in creator if opted in
       if (joinMatch && match) {
         await supabase.rpc("check_in_match", {
           p_match_id: match.id,
@@ -124,17 +124,17 @@ export default function CreateMatch() {
   if (!groupId) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-surface border-b border-border sticky top-0 z-10">
         <div className="flex items-center gap-3 p-4">
           <button
             onClick={() => navigate(`/groups/${groupId}`)}
-            className="p-2 -ml-2 hover:bg-gray-100 rounded-lg"
+            className="p-2 -ml-2 hover:bg-muted rounded-lg"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
           </button>
-          <h1 className="text-lg font-semibold text-gray-900">
+          <h1 className="text-lg font-semibold text-foreground">
             {t("match.create")}
           </h1>
         </div>
@@ -143,7 +143,7 @@ export default function CreateMatch() {
       <form onSubmit={handleSubmit} className="p-4 space-y-6">
         {/* Venue Selection */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-muted-foreground">
             {t("group.venues")}
           </label>
           <div className="space-y-2">
@@ -154,21 +154,21 @@ export default function CreateMatch() {
                 onClick={() => setVenueId(venue.id)}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                   venueId === venue.id
-                    ? "border-primary-500 bg-primary-50"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-surface hover:border-border"
                 }`}
               >
                 <MapPin className={`w-5 h-5 ${
-                  venueId === venue.id ? "text-primary-600" : "text-gray-400"
+                  venueId === venue.id ? "text-primary" : "text-muted-foreground"
                 }`} />
                 <div className="flex-1 text-left">
-                  <p className="font-medium text-gray-900">{venue.name}</p>
+                  <p className="font-medium text-foreground">{venue.name}</p>
                   {venue.address && (
-                    <p className="text-sm text-gray-500">{venue.address}</p>
+                    <p className="text-sm text-muted-foreground">{venue.address}</p>
                   )}
                 </div>
                 {venueId === venue.id && (
-                  <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center">
+                  <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
                     <Check className="w-4 h-4 text-white" />
                   </div>
                 )}
@@ -177,7 +177,7 @@ export default function CreateMatch() {
             <button
               type="button"
               onClick={() => navigate(`/groups/${groupId}/venues/create`)}
-              className="w-full flex items-center gap-2 p-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-primary-400 hover:text-primary-600 transition-colors"
+              className="w-full flex items-center gap-2 p-3 border-2 border-dashed border-border rounded-xl text-muted-foreground hover:border-primary hover:text-primary transition-colors"
             >
               <Plus className="w-5 h-5" />
               {t("venue.addNew", "Adicionar nova quadra")}
@@ -187,41 +187,41 @@ export default function CreateMatch() {
 
         {/* Date & Time */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-muted-foreground">
             {t("match.date", "Data")}
           </label>
           <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <input
               type="date"
               required
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               min={new Date().toISOString().split("T")[0]}
-              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-muted-foreground">
             {t("match.time", "Horário de início")}
           </label>
           <div className="relative">
-            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <input
               type="time"
               required
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
         </div>
 
         {/* Duration */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-muted-foreground">
             {t("match.duration", "Duração")}
           </label>
           <div className="grid grid-cols-3 gap-3">
@@ -232,12 +232,12 @@ export default function CreateMatch() {
                 onClick={() => setDurationHours(h)}
                 className={`py-3 rounded-xl border-2 font-medium transition-all ${
                   durationHours === h
-                    ? "border-primary-500 bg-primary-50 text-primary-700"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-border bg-surface text-muted-foreground hover:border-border"
                 }`}
               >
                 {h}h
-                <div className="text-xs font-normal text-gray-500 mt-1">
+                <div className="text-xs font-normal text-muted-foreground mt-1">
                   {(h === 1
                     ? group?.max_players_1h
                     : h === 2
@@ -252,14 +252,14 @@ export default function CreateMatch() {
 
         {/* Court Cost */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-muted-foreground">
             {t("match.courtCost")}{" "}
-            <span className="font-normal text-gray-400">(
+            <span className="font-normal text-muted-foreground">(
               {t("match.optional", "opcional")})
             </span>
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">R$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">R$</span>
             <input
               type="number"
               min="0"
@@ -267,28 +267,28 @@ export default function CreateMatch() {
               value={courtCost}
               onChange={(e) => setCourtCost(e.target.value)}
               placeholder="0,00"
-              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
         </div>
 
         {/* Join Option */}
-        <div className="flex items-center gap-3 p-4 bg-primary-50 rounded-xl">
+        <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-xl">
           <input
             type="checkbox"
             id="joinMatch"
             checked={joinMatch}
             onChange={(e) => setJoinMatch(e.target.checked)}
-            className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
+            className="w-5 h-5 text-primary rounded focus:ring-primary"
           />
-          <label htmlFor="joinMatch" className="flex items-center gap-2 text-sm text-primary-800 cursor-pointer">
+          <label htmlFor="joinMatch" className="flex items-center gap-2 text-sm text-primary cursor-pointer">
             <Users className="w-4 h-4" />
             {t("match.joinAutomatically", "Entrar automaticamente na partida")}
           </label>
         </div>
 
         {error && (
-          <div className="bg-red-50 rounded-lg p-3 text-red-700 text-sm">
+          <div className="bg-destructive/10 rounded-lg p-3 text-destructive text-sm">
             {error}
           </div>
         )}
@@ -296,7 +296,7 @@ export default function CreateMatch() {
         <button
           type="submit"
           disabled={createMatch.isPending}
-          className="w-full py-3.5 bg-primary-600 text-white rounded-xl font-semibold disabled:opacity-50 hover:bg-primary-700 transition-colors"
+          className="w-full py-3.5 bg-primary text-white rounded-xl font-semibold disabled:opacity-50 hover:bg-primary/90 transition-colors"
         >
           {createMatch.isPending
             ? t("app.loading")
@@ -305,15 +305,4 @@ export default function CreateMatch() {
       </form>
     </div>
   );
-}
-
-function calculateMaxPlayers(
-  start: Date,
-  end: Date,
-  group: Group
-): number {
-  const hours = (end.getTime() - start.getTime()) / (1000 * 3600);
-  if (hours < 2) return group.max_players_1h;
-  if (hours < 3) return group.max_players_2h;
-  return group.max_players_3h_plus;
 }

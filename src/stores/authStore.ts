@@ -18,6 +18,8 @@ interface AuthState {
   signOut: () => Promise<void>;
 }
 
+let authSubscription: { unsubscribe: () => void } | null = null;
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   session: null,
@@ -40,7 +42,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isInitialized: true });
     }
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    authSubscription?.unsubscribe();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       set({ session, user: session?.user ?? null });
       if (_event === "SIGNED_IN") {
         const redirect = localStorage.getItem("auth_redirect");
@@ -50,6 +53,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
       }
     });
+    authSubscription = subscription;
   },
 
   signInWithEmail: async (email) => {
@@ -101,6 +105,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   signOut: async () => {
     set({ isLoading: true });
+    authSubscription?.unsubscribe();
+    authSubscription = null;
     await supabase.auth.signOut();
     set({ user: null, session: null, isLoading: false });
   },

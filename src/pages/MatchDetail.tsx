@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -18,6 +18,8 @@ import {
   Pencil,
 } from "lucide-react";
 import type { Match, Profile, Group, MatchPayment } from "../types";
+import { LoadingSpinner } from "../components/LoadingSpinner";
+import { formatMatchLongDate, formatMatchTime, toDateInputValue, toTimeInputValue } from "../lib/dateUtils";
 
 interface MatchPlayerWithProfile {
   id: string;
@@ -62,6 +64,7 @@ export default function MatchDetail() {
   const [showKickModal, setShowKickModal] = useState(false);
   const [playersToKick, setPlayersToKick] = useState<Set<string>>(new Set());
   const [isKicking, setIsKicking] = useState(false);
+  const [hasHydratedEdit, setHasHydratedEdit] = useState(false);
 
   const { data: match } = useQuery<Match & { group: Group; venue: { name: string } }>({
     queryKey: ["match", matchId],
@@ -94,16 +97,15 @@ export default function MatchDetail() {
   });
 
   useEffect(() => {
-    if (match) {
-      const start = new Date(match.start_time);
-      const end = new Date(match.end_time);
-      setEditStartDate(start.toISOString().split("T")[0]);
-      setEditStartTime(start.toTimeString().slice(0, 5));
-      setEditEndDate(end.toISOString().split("T")[0]);
-      setEditEndTime(end.toTimeString().slice(0, 5));
+    if (match && !hasHydratedEdit) {
+      setEditStartDate(toDateInputValue(match.start_time));
+      setEditStartTime(toTimeInputValue(match.start_time));
+      setEditEndDate(toDateInputValue(match.end_time));
+      setEditEndTime(toTimeInputValue(match.end_time));
       setEditMaxPlayers(match.max_players);
+      setHasHydratedEdit(true);
     }
-  }, [match]);
+  }, [match, hasHydratedEdit]);
 
   const { data: payments } = useQuery<MatchPayment[]>({
     queryKey: ["match-payments", matchId],
@@ -119,12 +121,13 @@ export default function MatchDetail() {
     enabled: !!matchId,
   });
 
-  const confirmedPlayers = players?.filter((p) => p.status === "confirmed") || [];
-  const waitlistedPlayers = players?.filter((p) => p.status === "waitlist") || [];
-  const isOwner = match?.created_by === user?.id;
-  const isFull = confirmedPlayers.length >= (match?.max_players || 0);
-  const isPlayer = players?.some((p) => p.user_id === user?.id && p.status === "confirmed");
-  const isWaitlisted = players?.some((p) => p.user_id === user?.id && p.status === "waitlist");
+  const confirmedPlayers = useMemo(() => players?.filter((p) => p.status === "confirmed") || [], [players]);
+  const waitlistedPlayers = useMemo(() => players?.filter((p) => p.status === "waitlist") || [], [players]);
+  const isOwner = useMemo(() => match?.created_by === user?.id, [match, user]);
+  const isFull = useMemo(() => confirmedPlayers.length >= (match?.max_players || 0), [confirmedPlayers, match]);
+  const isPlayer = useMemo(() => players?.some((p) => p.user_id === user?.id && p.status === "confirmed"), [players, user]);
+  const isWaitlisted = useMemo(() => players?.some((p) => p.user_id === user?.id && p.status === "waitlist"), [players, user]);
+  const paidUserIds = useMemo(() => new Set((payments || []).map((p) => p.user_id)), [payments]);
 
   const checkInMutation = useMutation({
     mutationFn: async () => {
@@ -205,11 +208,10 @@ export default function MatchDetail() {
         return data;
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });
-      // Auto check-in if opted
       if (extendJoinMatch && user && !isPlayer && !isWaitlisted) {
-        supabase.rpc("check_in_match", {
+        await supabase.rpc("check_in_match", {
           p_match_id: matchId,
           p_user_id: user.id,
         });
@@ -316,7 +318,6 @@ export default function MatchDetail() {
         (p) => !userIdsToKick.includes(p.user_id)
       );
 
-      // Owner kicks himself and no one remains -> delete match
       if (
         isOwner &&
         userIdsToKick.includes(user?.id || "") &&
@@ -334,39 +335,40 @@ export default function MatchDetail() {
         return;
       }
 
-      // Transfer ownership if owner kicks himself
-      if (isOwner && userIdsToKick.includes(user?.id || "")) {
-        const { error } = await supabase
-          .from("matches")
-          .update({ created_by: remainingPlayers[0].user_id })
-          .eq("id", matchId);
-        if (error) throw error;
-      }
-
-      // Cancel kicked players
-      for (const userId of userIdsToKick) {
-        const { error } = await supabase
-          .from("match_players")
-          .update({ status: "cancelled" })
-          .eq("match_id", matchId)
-          .eq("user_id", userId);
-        if (error) throw error;
-      }
-
-      // Update match
       const start = new Date(`${editStartDate}T${editStartTime}`);
       const end = new Date(`${editEndDate}T${editEndTime}`);
       if (end <= start) throw new Error("End time must be after start time");
 
-      const { error } = await supabase
-        .from("matches")
-        .update({
-          start_time: start.toISOString(),
-          end_time: end.toISOString(),
-          max_players: editMaxPlayers,
-        })
-        .eq("id", matchId);
-      if (error) throw error;
+      const ownershipPromise =
+        isOwner && userIdsToKick.includes(user?.id || "")
+          ? supabase
+              .from("matches")
+              .update({ created_by: remainingPlayers[0].user_id })
+              .eq("id", matchId)
+          : Promise.resolve(null);
+
+      const [cancelResult, matchUpdateResult] = await Promise.all([
+        supabase
+          .from("match_players")
+          .update({ status: "cancelled" })
+          .eq("match_id", matchId)
+          .in("user_id", userIdsToKick),
+        supabase
+          .from("matches")
+          .update({
+            start_time: start.toISOString(),
+            end_time: end.toISOString(),
+            max_players: editMaxPlayers,
+          })
+          .eq("id", matchId),
+      ]);
+
+      const ownershipResult = await ownershipPromise;
+
+      if (cancelResult.error) throw cancelResult.error;
+      if (matchUpdateResult.error) throw matchUpdateResult.error;
+      if (ownershipResult && (ownershipResult as { error?: Error }).error)
+        throw (ownershipResult as { error: Error }).error;
 
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });
       queryClient.invalidateQueries({ queryKey: ["match-players", matchId] });
@@ -407,16 +409,16 @@ export default function MatchDetail() {
 
   if (!match) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingSpinner size="sm" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-surface border-b border-border">
         <div className="flex items-center gap-3 p-4">
           <button
             onClick={() =>
@@ -425,12 +427,12 @@ export default function MatchDetail() {
                   `/groups/${match.group_id}`
               )
             }
-            className="p-2 -ml-2 hover:bg-gray-100 rounded-lg"
+            className="p-2 -ml-2 hover:bg-muted rounded-lg"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-semibold text-gray-900 truncate">
+            <h1 className="text-lg font-semibold text-foreground truncate">
               {t("match.details", "Detalhes da partida")}
             </h1>
           </div>
@@ -439,15 +441,15 @@ export default function MatchDetail() {
               <>
                 <button
                   onClick={() => setShowEditModal(true)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
+                  className="p-2 hover:bg-muted rounded-lg"
                 >
-                  <Pencil className="w-5 h-5 text-gray-600" />
+                  <Pencil className="w-5 h-5 text-muted-foreground" />
                 </button>
                 <button
                   onClick={() => setShowDeleteModal(true)}
-                  className="p-2 hover:bg-red-100 rounded-lg"
+                  className="p-2 hover:bg-destructive/10 rounded-lg"
                 >
-                  <Trash2 className="w-5 h-5 text-red-500" />
+                  <Trash2 className="w-5 h-5 text-destructive" />
                 </button>
               </>
             )}
@@ -456,39 +458,27 @@ export default function MatchDetail() {
       </div>
 
       {/* Match Info */}
-      <div className="bg-white border-b border-gray-200 p-4 space-y-3">
+      <div className="bg-surface border-b border-border p-4 space-y-3">
         <div className="flex items-center gap-3">
-          <Calendar className="w-5 h-5 text-primary-600" />
-          <span className="text-gray-900 font-medium">
-            {new Date(match.start_time).toLocaleDateString(undefined, {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
+          <Calendar className="w-5 h-5 text-primary" />
+          <span className="text-foreground font-medium">
+            {formatMatchLongDate(match.start_time)}
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <Clock className="w-5 h-5 text-primary-600" />
-          <span className="text-gray-900">
-            {new Date(match.start_time).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}{" "}-{" "}
-            {new Date(match.end_time).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+          <Clock className="w-5 h-5 text-primary" />
+          <span className="text-foreground">
+            {formatMatchTime(match.start_time)} - {formatMatchTime(match.end_time)}
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <MapPin className="w-5 h-5 text-primary-600" />
-          <span className="text-gray-900">{match.venue?.name}</span>
+          <MapPin className="w-5 h-5 text-primary" />
+          <span className="text-foreground">{match.venue?.name}</span>
         </div>
         {match.court_cost && (
           <div className="flex items-center gap-3">
-            <span className="text-primary-600 font-bold">R$</span>
-            <span className="text-gray-900">
+            <span className="text-primary font-bold">R$</span>
+            <span className="text-foreground">
               {match.court_cost.toFixed(2)} {t("match.perPerson", "por pessoa")}
             </span>
           </div>
@@ -500,12 +490,12 @@ export default function MatchDetail() {
         {/* Confirmed Players */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-foreground">
               {t("match.players")}
             </h2>
             <span
               className={`text-sm font-medium ${
-                isFull ? "text-red-600" : "text-green-600"
+                isFull ? "text-destructive" : "text-green-600"
               }`}
             >
               {confirmedPlayers.length}/{match.max_players}{" "}
@@ -519,17 +509,17 @@ export default function MatchDetail() {
             {confirmedPlayers.map((player) => (
               <div
                 key={player.id}
-                className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100"
+                className="flex items-center gap-3 p-3 bg-surface rounded-xl border border-border"
               >
-                <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                  <Users className="w-5 h-5 text-primary-600" />
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                  <Users className="w-5 h-5 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 truncate">
+                  <p className="font-medium text-foreground truncate">
                     {player.profile.name || player.profile.id}
                   </p>
                   {player.user_id === match.created_by && (
-                    <p className="text-xs text-primary-600 font-medium">
+                    <p className="text-xs text-primary font-medium">
                       {t("match.owner")}
                     </p>
                   )}
@@ -545,27 +535,27 @@ export default function MatchDetail() {
         {/* Waitlist */}
         {waitlistedPlayers.length > 0 && (
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-foreground">
               {t("match.waitlist")}
             </h2>
             <div className="space-y-2">
-              {waitlistedPlayers
+              {[...waitlistedPlayers]
                 .sort((a, b) => (a.waitlist_position || 0) - (b.waitlist_position || 0))
                 .map((player, index) => (
                   <div
                     key={player.id}
-                    className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100"
+                    className="flex items-center gap-3 p-3 bg-amber-500/10 rounded-xl border border-amber-100"
                   >
-                    <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 font-bold text-sm">
+                    <div className="w-8 h-8 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 font-bold text-sm">
                       {index + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">
+                      <p className="font-medium text-foreground truncate">
                         {player.profile.name || player.profile.id}
                       </p>
                     </div>
                     {player.user_id === user?.id && (
-                      <span className="text-xs text-amber-700 font-medium">
+                      <span className="text-xs text-amber-500 font-medium">
                         {t("match.you", "Você")}
                       </span>
                     )}
@@ -579,11 +569,11 @@ export default function MatchDetail() {
         {match.court_cost != null && match.court_cost > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-primary-600" />
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-primary" />
                 {t("match.payments")}
               </h2>
-              <span className="text-sm font-medium text-gray-700">
+              <span className="text-sm font-medium text-muted-foreground">
                 {t("match.totalCollected", "Total arrecadado")}: R${" "}
                 {payments
                   ?.reduce((sum, p) => sum + (p.amount || 0), 0)
@@ -595,26 +585,24 @@ export default function MatchDetail() {
 
             <div className="space-y-2">
               {confirmedPlayers.map((player) => {
-                const isPaid = payments?.some(
-                  (p) => p.user_id === player.user_id
-                );
+                const isPaid = paidUserIds.has(player.user_id);
                 const canToggle =
                   isOwner || player.user_id === user?.id;
                 return (
                   <div
                     key={player.id}
-                    className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100"
+                    className="flex items-center gap-3 p-3 bg-surface rounded-xl border border-border"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">
+                      <p className="font-medium text-foreground truncate">
                         {player.profile.name || player.profile.id}
                       </p>
                       {player.profile.pix_key ? (
-                        <p className="text-xs text-gray-500 truncate">
+                        <p className="text-xs text-muted-foreground truncate">
                           {t("match.pixKey")}: {player.profile.pix_key}
                         </p>
                       ) : (
-                        <p className="text-xs text-gray-400 italic">
+                        <p className="text-xs text-muted-foreground/70 italic">
                           {t("match.pixKey")}: —
                         </p>
                       )}
@@ -632,8 +620,8 @@ export default function MatchDetail() {
                         disabled={togglePaymentMutation.isPending}
                         className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${
                           isPaid
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            ? "bg-green-500/10 text-green-500"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
                         }`}
                       >
                         {isPaid
@@ -642,7 +630,7 @@ export default function MatchDetail() {
                       </button>
                     )}
                     {!canToggle && isPaid && (
-                      <span className="text-sm font-semibold text-green-700 bg-green-100 px-3 py-1.5 rounded-lg">
+                      <span className="text-sm font-semibold text-green-500 bg-green-500/10 px-3 py-1.5 rounded-lg">
                         {t("match.paid")}
                       </span>
                     )}
@@ -655,7 +643,7 @@ export default function MatchDetail() {
 
         {/* Error */}
         {error && (
-          <div className="bg-red-50 rounded-lg p-3 text-red-700 text-sm text-center">
+          <div className="bg-destructive/10 rounded-lg p-3 text-destructive text-sm text-center">
             {error}
           </div>
         )}
@@ -666,7 +654,7 @@ export default function MatchDetail() {
             <button
               onClick={() => checkInMutation.mutate()}
               disabled={checkInMutation.isPending}
-              className="w-full py-3.5 bg-primary-600 text-white rounded-xl font-semibold disabled:opacity-50 hover:bg-primary-700 transition-colors"
+              className="w-full py-3.5 bg-primary text-white rounded-xl font-semibold disabled:opacity-50 hover:bg-primary/90 transition-colors"
             >
               {checkInMutation.isPending
                 ? t("app.loading")
@@ -678,7 +666,7 @@ export default function MatchDetail() {
             <button
               onClick={() => checkInMutation.mutate()}
               disabled={checkInMutation.isPending}
-              className="w-full py-3.5 bg-amber-500 text-white rounded-xl font-semibold disabled:opacity-50 hover:bg-amber-600 transition-colors"
+              className="w-full py-3.5 bg-amber-500/100 text-white rounded-xl font-semibold disabled:opacity-50 hover:bg-amber-600 transition-colors"
             >
               {checkInMutation.isPending
                 ? t("app.loading")
@@ -690,7 +678,7 @@ export default function MatchDetail() {
             <button
               onClick={handleForfeit}
               disabled={forfeitMutation.isPending || deleteMutation.isPending}
-              className="w-full py-3.5 border-2 border-red-200 text-red-600 rounded-xl font-semibold disabled:opacity-50 hover:bg-red-50 transition-colors"
+              className="w-full py-3.5 border-2 border-red-200 text-destructive rounded-xl font-semibold disabled:opacity-50 hover:bg-destructive/10 transition-colors"
             >
               {forfeitMutation.isPending || deleteMutation.isPending
                 ? t("app.loading")
@@ -701,7 +689,7 @@ export default function MatchDetail() {
           {isOwner && (
             <button
               onClick={() => setShowExtendModal(true)}
-              className="w-full py-3.5 bg-white border-2 border-primary-200 text-primary-700 rounded-xl font-semibold hover:bg-primary-50 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3.5 bg-surface border-2 border-primary/20 text-primary rounded-xl font-semibold hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
             >
               <Plus className="w-5 h-5" />
               {t("match.extend")}
@@ -713,13 +701,13 @@ export default function MatchDetail() {
       {/* Extend Match Modal */}
       {showExtendModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-foreground">
               {t("match.extend", "Estender partida")}
             </h2>
             {/* Direction */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-muted-foreground">
                 {t("match.extendDirection", "Direção")}
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -732,8 +720,8 @@ export default function MatchDetail() {
                     onClick={() => setExtendDirection(d.key)}
                     className={`py-3 rounded-xl border-2 font-medium transition-all ${
                       extendDirection === d.key
-                        ? "border-primary-500 bg-primary-50 text-primary-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-border bg-surface text-muted-foreground hover:border-border"
                     }`}
                   >
                     {d.label}
@@ -743,7 +731,7 @@ export default function MatchDetail() {
             </div>
             {/* Duration */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-muted-foreground">
                 {t("match.duration", "Duração")}
               </label>
               <div className="grid grid-cols-3 gap-3">
@@ -753,8 +741,8 @@ export default function MatchDetail() {
                     onClick={() => setExtendHours(h)}
                     className={`py-3 rounded-xl border-2 font-medium transition-all ${
                       extendHours === h
-                        ? "border-primary-500 bg-primary-50 text-primary-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-border bg-surface text-muted-foreground hover:border-border"
                     }`}
                   >
                     {h}h
@@ -764,13 +752,13 @@ export default function MatchDetail() {
             </div>
             {/* Auto check-in */}
             {!isPlayer && !isWaitlisted && (
-              <div className="flex items-center gap-3 p-4 bg-primary-50 rounded-xl">
+              <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-xl">
                 <input
                   type="checkbox"
                   id="extendJoinMatch"
                   checked={extendJoinMatch}
                   onChange={(e) => setExtendJoinMatch(e.target.checked)}
-                  className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
+                  className="w-5 h-5 text-primary rounded focus:ring-primary"
                 />
                 <label htmlFor="extendJoinMatch" className="text-sm text-primary-800 cursor-pointer">
                   {t("match.joinAutomatically", "Entrar automaticamente na partida")}
@@ -780,14 +768,14 @@ export default function MatchDetail() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowExtendModal(false)}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+                className="flex-1 py-3 bg-muted text-muted-foreground rounded-xl font-medium"
               >
                 {t("app.cancel")}
               </button>
               <button
                 onClick={() => extendMutation.mutate()}
                 disabled={extendMutation.isPending}
-                className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-medium disabled:opacity-50"
+                className="flex-1 py-3 bg-primary text-white rounded-xl font-medium disabled:opacity-50"
               >
                 {extendMutation.isPending ? t("app.loading") : t("app.save")}
               </button>
@@ -799,11 +787,11 @@ export default function MatchDetail() {
       {/* Forfeit + Transfer Modal */}
       {showForfeitModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-foreground">
               {t("match.forfeit", "Desistir da partida")}
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               {t("match.transferBeforeForfeit", "Você é o organizador. Antes de desistir, escolha um novo organizador:")}
             </p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -815,20 +803,20 @@ export default function MatchDetail() {
                     onClick={() => setSelectedNewOwner(player.user_id)}
                     className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                       selectedNewOwner === player.user_id
-                        ? "border-primary-500 bg-primary-50"
-                        : "border-gray-200 hover:border-gray-300"
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-border"
                     }`}
                   >
-                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                      <Users className="w-5 h-5 text-primary-600" />
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1 text-left">
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-foreground">
                         {player.profile.name || player.profile.id}
                       </p>
                     </div>
                     {selectedNewOwner === player.user_id && (
-                      <CheckCircle className="w-5 h-5 text-primary-600" />
+                      <CheckCircle className="w-5 h-5 text-primary" />
                     )}
                   </button>
                 ))}
@@ -836,14 +824,14 @@ export default function MatchDetail() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowForfeitModal(false)}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+                className="flex-1 py-3 bg-muted text-muted-foreground rounded-xl font-medium"
               >
                 {t("app.cancel")}
               </button>
               <button
                 onClick={handleTransferAndForfeit}
                 disabled={!selectedNewOwner || transferOwnershipMutation.isPending}
-                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium disabled:opacity-50"
+                className="flex-1 py-3 bg-destructive text-white rounded-xl font-medium disabled:opacity-50"
               >
                 {transferOwnershipMutation.isPending
                   ? t("app.loading")
@@ -857,61 +845,61 @@ export default function MatchDetail() {
       {/* Edit Match Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-foreground">
               {t("match.editMatch", "Editar Partida")}
             </h2>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-muted-foreground">
                     {t("match.date")}
                   </label>
                   <input
                     type="date"
                     value={editStartDate}
                     onChange={(e) => setEditStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-muted-foreground">
                     {t("match.time")}
                   </label>
                   <input
                     type="time"
                     value={editStartTime}
                     onChange={(e) => setEditStartTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-muted-foreground">
                     {t("match.endDate", "End date")}
                   </label>
                   <input
                     type="date"
                     value={editEndDate}
                     onChange={(e) => setEditEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-muted-foreground">
                     {t("match.endTime", "End time")}
                   </label>
                   <input
                     type="time"
                     value={editEndTime}
                     onChange={(e) => setEditEndTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-muted-foreground">
                   {t("match.maxPlayers", "Máx. jogadores")}
                 </label>
                 <input
@@ -920,14 +908,14 @@ export default function MatchDetail() {
                   max={20}
                   value={editMaxPlayers}
                   onChange={(e) => setEditMaxPlayers(parseInt(e.target.value) || 4)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             </div>
 
             {/* Transfer Ownership section inside edit modal */}
-            <div className="border-t border-gray-200 pt-4 space-y-3">
-              <h3 className="text-sm font-medium text-gray-700">
+            <div className="border-t border-border pt-4 space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">
                 {t("match.transferOwnership", "Transferir partida")}
               </h3>
               <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -939,20 +927,20 @@ export default function MatchDetail() {
                       onClick={() => setSelectedNewOwner(player.user_id)}
                       className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                         selectedNewOwner === player.user_id
-                          ? "border-primary-500 bg-primary-50"
-                          : "border-gray-200 hover:border-gray-300"
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-border"
                       }`}
                     >
-                      <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                        <Users className="w-5 h-5 text-primary-600" />
+                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                        <Users className="w-5 h-5 text-primary" />
                       </div>
                       <div className="flex-1 text-left">
-                        <p className="font-medium text-gray-900">
+                        <p className="font-medium text-foreground">
                           {player.profile.name || player.profile.id}
                         </p>
                       </div>
                       {selectedNewOwner === player.user_id && (
-                        <CheckCircle className="w-5 h-5 text-primary-600" />
+                        <CheckCircle className="w-5 h-5 text-primary" />
                       )}
                     </button>
                   ))}
@@ -968,7 +956,7 @@ export default function MatchDetail() {
                     });
                   }}
                   disabled={transferOwnershipMutation.isPending}
-                  className="w-full py-2.5 bg-primary-600 text-white rounded-xl font-medium disabled:opacity-50"
+                  className="w-full py-2.5 bg-primary text-white rounded-xl font-medium disabled:opacity-50"
                 >
                   {transferOwnershipMutation.isPending
                     ? t("app.loading")
@@ -983,14 +971,14 @@ export default function MatchDetail() {
                   setShowEditModal(false);
                   setSelectedNewOwner("");
                 }}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+                className="flex-1 py-3 bg-muted text-muted-foreground rounded-xl font-medium"
               >
                 {t("app.cancel")}
               </button>
               <button
                 onClick={handleUpdateMatch}
                 disabled={updateMatchMutation.isPending}
-                className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-medium disabled:opacity-50"
+                className="flex-1 py-3 bg-primary text-white rounded-xl font-medium disabled:opacity-50"
               >
                 {updateMatchMutation.isPending
                   ? t("app.loading")
@@ -1004,16 +992,16 @@ export default function MatchDetail() {
       {/* Kick Players Modal */}
       {showKickModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-foreground">
               {t("match.kickPlayers", "Remover Jogadores")}
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               {t("match.kickPrompt", "Select players to remove")} (
               {confirmedPlayers.length - editMaxPlayers})
             </p>
             {isOwner && (
-              <p className="text-xs text-amber-600">
+              <p className="text-xs text-amber-500">
                 {t(
                   "match.ownerKickTransfer",
                   "Você é o organizador. Se se remover, a organização será transferida para o jogador restante."
@@ -1026,8 +1014,8 @@ export default function MatchDetail() {
                   key={player.id}
                   className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
                     playersToKick.has(player.user_id)
-                      ? "border-red-500 bg-red-50"
-                      : "border-gray-200 hover:border-gray-300"
+                      ? "border-red-500 bg-destructive/10"
+                      : "border-border hover:border-border"
                   }`}
                 >
                   <input
@@ -1042,17 +1030,17 @@ export default function MatchDetail() {
                       }
                       setPlayersToKick(next);
                     }}
-                    className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
+                    className="w-5 h-5 text-destructive rounded focus:ring-destructive"
                   />
-                  <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                    <Users className="w-5 h-5 text-primary-600" />
+                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                    <Users className="w-5 h-5 text-primary" />
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="font-medium text-gray-900">
+                    <p className="font-medium text-foreground">
                       {player.profile.name || player.profile.id}
                     </p>
                     {player.user_id === match.created_by && (
-                      <p className="text-xs text-primary-600 font-medium">
+                      <p className="text-xs text-primary font-medium">
                         {t("match.owner")}
                       </p>
                     )}
@@ -1063,7 +1051,7 @@ export default function MatchDetail() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowKickModal(false)}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+                className="flex-1 py-3 bg-muted text-muted-foreground rounded-xl font-medium"
               >
                 {t("app.cancel")}
               </button>
@@ -1074,7 +1062,7 @@ export default function MatchDetail() {
                   playersToKick.size !==
                     confirmedPlayers.length - editMaxPlayers
                 }
-                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium disabled:opacity-50"
+                className="flex-1 py-3 bg-destructive text-white rounded-xl font-medium disabled:opacity-50"
               >
                 {isKicking
                   ? t("app.loading")
@@ -1088,25 +1076,25 @@ export default function MatchDetail() {
       {/* Delete Match Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
               {t("match.delete", "Excluir partida")}
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               {t("match.deleteConfirm", "Tem certeza? Esta ação não pode ser desfeita.")}
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+                className="flex-1 py-3 bg-muted text-muted-foreground rounded-xl font-medium"
               >
                 {t("app.cancel")}
               </button>
               <button
                 onClick={() => deleteMutation.mutate()}
                 disabled={deleteMutation.isPending}
-                className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium disabled:opacity-50"
+                className="flex-1 py-3 bg-destructive text-white rounded-xl font-medium disabled:opacity-50"
               >
                 {deleteMutation.isPending ? t("app.loading") : t("app.delete")}
               </button>
