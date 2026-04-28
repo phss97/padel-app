@@ -34,7 +34,8 @@ There is **no test suite** in this project. Do not run `npm test`.
 ### Auth Flow
 - Login page at `/`. Protected routes wrap components in `ProtectedRoute` (redirects to `/` if unauthenticated).
 - `AuthProvider` initializes auth state on app mount. Both `AuthProvider` and `ProtectedRoute` show a spinner while `isInitialized` is false.
-- Methods: Magic Link OTP (`signInWithOtp`) and Google OAuth (`signInWithOAuth`). Redirect target is `/dashboard`.
+- Methods: Magic Link OTP (`signInWithOtp`), Password (`signInWithPassword` / `signUp`), and Google OAuth (`signInWithOAuth`). Redirect target is `/dashboard`.
+- Password auth toggle in Login.tsx allows switching between Magic Link and Password mode.
 
 ### Database Backend (Supabase)
 - **Client:** `src/lib/supabase.ts` — single `createClient` with `autoRefreshToken`, `persistSession`, `detectSessionInUrl`.
@@ -42,7 +43,7 @@ There is **no test suite** in this project. Do not run `npm test`.
 - **SQL Functions (in `003_match_merge_logic.sql`):**
   - `try_merge_match(match_id)` — Auto-merges adjacent matches at same venue; recalculates `max_players`.
   - `extend_match(match_id, hours)` — Extends match end time; if overlapping match exists, calls `try_merge_match`.
-  - `check_in_match(match_id, user_id)` — Adds player as `confirmed` or `waitlist` with position.
+  - `check_in_match(match_id, user_id)` — Adds player as `confirmed` or `waitlist` with position. Re-checkin after forfeit works (fixed in `007_fix_check_in_rejoin.sql`).
   - `forfeit_match(match_id, user_id)` — Cancels player; if owner forfeits, transfers ownership to earliest joined remaining player.
   - Trigger `trg_promote_waitlist` — Cascades waitlist promotion when slots free up.
   - Trigger `trg_auto_merge_match` — Fires `try_merge_match` after match insert.
@@ -54,13 +55,18 @@ There is **no test suite** in this project. Do not run `npm test`.
 
 ### Key Business Rules
 1. **Auto-merge matches:** Adjacent matches at same venue merge automatically on insert. `max_players` recalculated from group settings based on total duration (`<2h`, `<3h`, `3h+`).
-2. **Explicit extend:** Owner can extend match duration. If extension overlaps another match, merge happens instead.
-3. **Creator auto-check-in:** On match creation, user is offered to join via checkbox (`joinMatch` state in `CreateMatch.tsx`).
-4. **Waitlist cascade:** Unlimited waitlist. When a confirmed player forfeits, earliest waitlisted player is promoted automatically.
-5. **Ownership transfer:** If owner forfeits, earliest joined remaining player becomes owner. If no players remain, match is orphaned.
-6. **Invite expiry:** Group invite codes expire after 7 days.
-7. **Soft delete:** Groups use `is_active` flag.
-8. **i18n:** Auto-detect from `navigator.language`, fallback `pt`. Toggle persists in `localStorage`.
+2. **Explicit extend:** Owner can extend match duration with before/after direction. If extension overlaps another match, merge happens instead.
+3. **Match editing:** Owner can edit start/end time and max players. If max players reduced below confirmed count, kick modal prompts which players to remove.
+4. **Ownership transfer:** Owner can transfer match ownership from the edit modal. If owner forfeits with no other players, match auto-deletes.
+5. **Creator auto-check-in:** On match creation, user is offered to join via checkbox (`joinMatch` state in `CreateMatch.tsx`).
+6. **Waitlist cascade:** Unlimited waitlist. When a confirmed player forfeits, earliest waitlisted player is promoted automatically.
+7. **Permanent invites:** Every group has a never-expiring permanent invite link. Temporary invites expire after 7 days.
+8. **Soft delete:** Groups use `is_active` flag.
+9. **i18n:** Auto-detect from `navigator.language`, fallback `pt`. Toggle persists in `localStorage`.
+
+### Navigation Patterns
+- **Never use `navigate(-1)`** for back buttons on CreateMatch, GroupDetail, or JoinGroup. Always navigate to explicit routes.
+- **MatchDetail back button** respects `location.state?.from` (set by Matches.tsx and GroupDetail.tsx) to return to the correct previous page.
 
 ## Environment Variables
 
@@ -76,7 +82,7 @@ VITE_VAPID_PUBLIC_KEY=
 | Directory | Contents |
 |-----------|----------|
 | `src/components/` | Reusable UI: `AuthProvider`, `ProtectedRoute`, `BottomNav` |
-| `src/pages/` | Route-level components: `Login`, `Dashboard`, `Groups`, `GroupDetail`, `JoinGroup`, `CreateMatch`, `MatchDetail`, `Matches`, `Profile` |
+| `src/pages/` | Route-level components: `Login`, `Dashboard`, `Groups`, `GroupDetail`, `GroupSettings`, `JoinGroup`, `CreateMatch`, `CreateVenue`, `MatchDetail`, `Matches`, `Profile` |
 | `src/hooks/` | `useServiceWorker` — registers `/service-worker.js` |
 | `src/lib/` | `supabase.ts` (client), `matchUtils.ts` (duration → max_players calc), `push/pushService.ts` (Web Push subscription) |
 | `src/stores/` | Zustand stores: `authStore.ts`, `appStore.ts` |
@@ -94,4 +100,6 @@ VITE_VAPID_PUBLIC_KEY=
 - The app uses **imported translation JSON files** (`src/locales/*/translation.json`) loaded at build time, not fetched dynamically.
 - **No `src/tests/` or test runner** exists. Do not add testing infrastructure unless explicitly requested.
 - Render deploys as a static site served with `npx serve -s dist`. SPA routing fallback must be handled by Render (already configured in `render.yaml`).
-- Recent migrations (`004_fix_rls_recursion.sql`, `005_fix_group_creator_select.sql`) fixed RLS infinite recursion and creator visibility issues. When modifying RLS policies, test for recursion with nested group memberships.
+- Recent migrations (`004_fix_rls_recursion.sql` through `008_fix_invite_rls.sql`) fixed RLS infinite recursion, creator visibility, group member insert, check-in rejoin, and anonymous invite access. When modifying RLS policies, test for recursion with nested group memberships.
+- **GroupDetail.tsx** fetches venues separately (not via `venues(*)` join on groups) because Supabase treats `venues.group_id -> groups.id` as a one-to-many relationship and returns an array.
+- **JoinGroup.tsx** removed `venues(name)` join from the unauthenticated group lookup to avoid RLS blocks on the venues table.

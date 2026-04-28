@@ -1,4 +1,4 @@
-# 🎾 Padel Match Manager
+# Padel Match Manager
 
 **A PWA for managing padel matches** — track players, organize groups, schedule courts, split costs with Pix, and get real-time notifications.
 
@@ -6,25 +6,30 @@ Built with **React 19 + Vite + TypeScript + Tailwind CSS v4** on the frontend an
 
 ---
 
-## ✨ Features
+## Features
 
 | Feature | Status |
 |---------|--------|
-| 🔐 Auth (Magic Link + Google OAuth) | ✅ |
-| 👥 Groups with invites (7-day expiry) | ✅ |
-| 🏟️ Venues (public/private courts) | ✅ |
-| 📅 Match creation with auto-merge | ✅ |
-| ⏱️ Match extension | ✅ |
-| ✅ Check-in / Forfeit | ✅ |
-| 📋 Waitlist with cascade promotion | ✅ |
-| 💸 Pix payment tracking | ✅ |
-| 🔔 Web Push notifications | ✅ |
-| 🌐 i18n (Portuguese + English) | ✅ |
-| 📱 PWA (installable, offline shell) | ✅ |
+| Auth (Magic Link + Password + Google OAuth) | ✅ |
+| Groups with permanent and temporary invites | ✅ |
+| Group settings (name, description, default venue, max players) | ✅ |
+| Member management (promote/demote/remove) | ✅ |
+| Venues (public/private courts) | ✅ |
+| Match creation with auto-merge | ✅ |
+| Match editing (time, duration, max players) | ✅ |
+| Match extension (before/after + duration) | ✅ |
+| Check-in / Forfeit / Kick players | ✅ |
+| Waitlist with cascade promotion | ✅ |
+| Ownership transfer (forfeit or edit) | ✅ |
+| Pix payment tracking | ✅ |
+| Upcoming match filters (all/available/full/not-joined) | ✅ |
+| Web Push notifications | ✅ |
+| i18n (Portuguese + English) | ✅ |
+| PWA (installable, offline shell) | ✅ |
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### Stack
 | Layer | Technology |
@@ -40,7 +45,7 @@ Built with **React 19 + Vite + TypeScript + Tailwind CSS v4** on the frontend an
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone & Install
 
@@ -74,19 +79,22 @@ npm run build
 
 ---
 
-## 🗄️ Database Setup
+## Database Setup
 
 Run the SQL migrations in this order on your Supabase SQL Editor:
 
 1. `supabase/migrations/001_init_schema.sql`
 2. `supabase/migrations/002_rls_policies.sql`
 3. `supabase/migrations/003_match_merge_logic.sql`
-
-Optional seed data: `supabase/seed.sql`
+4. `supabase/migrations/004_fix_rls_recursion.sql`
+5. `supabase/migrations/005_fix_group_creator_select.sql`
+6. `supabase/migrations/006_fix_group_members_insert.sql`
+7. `supabase/migrations/007_fix_check_in_rejoin.sql`
+8. `supabase/migrations/008_fix_invite_rls.sql`
 
 ---
 
-## 🔔 Push Notifications Setup
+## Push Notifications Setup
 
 ### Generate VAPID Keys
 
@@ -110,7 +118,7 @@ supabase secrets set VAPID_SUBJECT=mailto:your-email@gmail.com
 
 ---
 
-## 🌍 i18n
+## i18n
 
 - **Default**: Portuguese (pt-BR), auto-detected from `navigator.language`
 - **Toggle**: Available in Profile settings
@@ -118,7 +126,7 @@ supabase secrets set VAPID_SUBJECT=mailto:your-email@gmail.com
 
 ---
 
-## 📱 PWA
+## PWA
 
 The app is a Progressive Web App:
 - Installable on mobile home screen
@@ -127,7 +135,7 @@ The app is a Progressive Web App:
 
 ---
 
-## 🛡️ Security
+## Security
 
 - Row Level Security (RLS) on all database tables
 - `.env` and build artifacts excluded from Git
@@ -135,12 +143,14 @@ The app is a Progressive Web App:
 
 ---
 
-## 📁 Folder Structure
+## Folder Structure
 
 ```
 src/
   components/    # Reusable UI (BottomNav, AuthProvider, ProtectedRoute)
-  pages/         # Route-level pages (Login, Dashboard, Groups, Matches, Profile)
+  pages/         # Route-level pages (Login, Dashboard, Groups, GroupDetail,
+                 #   GroupSettings, JoinGroup, CreateMatch, CreateVenue,
+                 #   MatchDetail, Matches, Profile)
   hooks/         # Custom React hooks (useServiceWorker)
   lib/           # Client setup (supabase, i18n, match utils, push service)
   stores/        # Zustand stores (auth, app)
@@ -152,25 +162,28 @@ src/
 supabase/
   migrations/    # SQL schema + RLS policies + match logic
   functions/     # Edge Functions (push notifications)
-  seed.sql       # Sample data
+
+public/
+  service-worker.js  # PWA service worker for push notifications
 ```
 
 ---
 
-## 📝 Business Rules
+## Business Rules
 
 1. **Auto-merge matches:** Adjacent matches at same venue are merged; `max_players` recalculated based on total duration.
-2. **Explicit extend:** Users can extend a match from the match detail page.
-3. **Creator auto-check-in:** When creating/extending, user is offered to join.
-4. **Waitlist cascade:** Unlimited waitlist; continuous promotion when slots free.
-5. **Ownership transfer:** If owner forfeits, earliest joined player gets promoted; if none remain, match is orphaned.
-6. **Invite expiry:** 7 days.
-7. **Soft delete:** Groups use `is_active`; history preserved.
-8. **Language:** Auto-detect `navigator.language`, fallback pt-BR.
+2. **Explicit extend:** Owner can extend match duration with before/after direction.
+3. **Match editing:** Owner can edit start/end time and max players. If max players reduced below confirmed count, kick modal prompts which players to remove.
+4. **Ownership transfer:** Owner can transfer match ownership from the edit modal. If owner forfeits with no other players, match auto-deletes.
+5. **Creator auto-check-in:** When creating/extending, user is offered to join.
+6. **Waitlist cascade:** Unlimited waitlist; continuous promotion when slots free.
+7. **Permanent invites:** Every group has a never-expiring permanent invite link. Temporary invites expire after 7 days.
+8. **Soft delete:** Groups use `is_active`; history preserved.
+9. **Language:** Auto-detect `navigator.language`, fallback pt-BR.
 
 ---
 
-## 🚀 Deploy
+## Deploy
 
 ### Supabase
 - Create project → run migrations → configure Auth providers → set Edge Function secrets
@@ -183,6 +196,6 @@ supabase/
 
 ---
 
-## 📄 License
+## License
 
 MIT
