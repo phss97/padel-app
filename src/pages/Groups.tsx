@@ -139,8 +139,8 @@ export default function Groups() {
 
       {/* Create Group Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center overflow-y-auto">
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-foreground">
                 {t("group.createNew", "Novo grupo")}

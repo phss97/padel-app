@@ -695,8 +695,8 @@ export default function MatchDetail() {
 
       {/* Extend Match Modal */}
       {showExtendModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center overflow-y-auto">
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
             <h2 className="text-lg font-semibold text-foreground">
               {t("match.extend", "Estender partida")}
             </h2>
@@ -781,8 +781,8 @@ export default function MatchDetail() {
 
       {/* Forfeit + Transfer Modal */}
       {showForfeitModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center overflow-y-auto">
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
             <h2 className="text-lg font-semibold text-foreground">
               {t("match.forfeit", "Desistir da partida")}
             </h2>
@@ -839,8 +839,8 @@ export default function MatchDetail() {
 
       {/* Edit Match Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center overflow-y-auto">
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
             <h2 className="text-lg font-semibold text-foreground">
               {t("match.editMatch", "Editar Partida")}
             </h2>
@@ -986,8 +986,8 @@ export default function MatchDetail() {
 
       {/* Kick Players Modal */}
       {showKickModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center overflow-y-auto">
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
             <h2 className="text-lg font-semibold text-foreground">
               {t("match.kickPlayers", "Remover Jogadores")}
             </h2>
@@ -1070,8 +1070,8 @@ export default function MatchDetail() {
 
       {/* Delete Match Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center overflow-y-auto">
+          <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-destructive" />
               {t("match.delete", "Excluir partida")}
