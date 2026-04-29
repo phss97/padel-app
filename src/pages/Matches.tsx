@@ -13,15 +13,27 @@ export default function Matches() {
   const { data: myMatches } = useQuery({
     queryKey: ["my-matches"],
     queryFn: async () => {
-      const { data } = await supabase
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data: playerRows } = await supabase
         .from("match_players")
-        .select("*, matches(*, venues(name), match_players(status))")
+        .select("match_id")
+        .eq("user_id", user.id)
         .eq("status", "confirmed");
-      return (data || []).sort(
-        (a, b) =>
-          new Date(a.matches.start_time).getTime() -
-          new Date(b.matches.start_time).getTime(),
-      );
+
+      const matchIds = (playerRows || []).map((r) => r.match_id);
+      if (matchIds.length === 0) return [];
+
+      const { data } = await supabase
+        .from("matches")
+        .select("*, venues(name), match_players(status)")
+        .in("id", matchIds)
+        .order("start_time", { ascending: true });
+
+      return data || [];
     },
   });
 
@@ -30,12 +42,11 @@ export default function Matches() {
       <h1 className="text-2xl font-bold text-foreground">{t("nav.matches")}</h1>
 
       <div className="space-y-3">
-        {myMatches?.map((entry) => {
-          const match = entry.matches;
+        {myMatches?.map((match) => {
           const playerCount = getConfirmedCount(match);
           return (
             <div
-              key={entry.id}
+              key={match.id}
               onClick={() =>
                 navigate(`/matches/${match.id}`, {
                   state: { from: "/matches" },
