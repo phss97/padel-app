@@ -16,9 +16,12 @@ export default function Matches() {
       const { data } = await supabase
         .from("match_players")
         .select("*, matches(*, venues(name), match_players(status))")
-        .eq("status", "confirmed")
-        .order("joined_at", { ascending: false });
-      return data || [];
+        .eq("status", "confirmed");
+      return (data || []).sort(
+        (a, b) =>
+          new Date(a.matches.start_time).getTime() -
+          new Date(b.matches.start_time).getTime(),
+      );
     },
   });
 
