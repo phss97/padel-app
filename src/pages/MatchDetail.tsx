@@ -192,27 +192,13 @@ export default function MatchDetail() {
   const extendMutation = useMutation({
     mutationFn: async () => {
       if (!matchId || !match) throw new Error("No match");
-      // Calculate new start/end based on direction
-      const currentStart = new Date(match.start_time);
-
-      if (extendDirection === "before") {
-        const newStart = new Date(currentStart.getTime() - extendHours * 60 * 60 * 1000);
-        const { data, error } = await supabase
-          .from("matches")
-          .update({ start_time: newStart.toISOString() })
-          .eq("id", matchId)
-          .select()
-          .single();
-        if (error) throw error;
-        return data;
-      } else {
-        const { data, error } = await supabase.rpc("extend_match", {
-          p_match_id: matchId,
-          p_hours: extendHours,
-        });
-        if (error) throw error;
-        return data;
-      }
+      const { data, error } = await supabase.rpc("extend_match", {
+        p_match_id: matchId,
+        p_hours: extendHours,
+        p_direction: extendDirection,
+      });
+      if (error) throw error;
+      return data;
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });
@@ -697,15 +683,13 @@ export default function MatchDetail() {
             </button>
           )}
 
-          {isOwner && (
-            <button
-              onClick={() => setShowExtendModal(true)}
-              className="w-full py-3.5 bg-surface border-2 border-primary/20 text-primary rounded-xl font-semibold hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              {t("match.extend")}
-            </button>
-          )}
+          <button
+            onClick={() => setShowExtendModal(true)}
+            className="w-full py-3.5 bg-surface border-2 border-primary/20 text-primary rounded-xl font-semibold hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            {t("match.extend")}
+          </button>
         </div>
       </div>
 
