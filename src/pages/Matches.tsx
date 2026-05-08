@@ -29,8 +29,9 @@ export default function Matches() {
 
       const { data } = await supabase
         .from("matches")
-        .select("*, venues(name), match_players(status)")
+        .select("*, venues(name), group:groups(id, name), match_players(status)")
         .in("id", matchIds)
+        .gt("start_time", new Date().toISOString())
         .order("start_time", { ascending: true });
 
       return data || [];
@@ -63,6 +64,9 @@ export default function Matches() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">{match.venues?.name}</p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Users className="w-3 h-3" /> {match.group?.name}
+                  </p>
                   <span className="inline-block mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
                     {t("match.statusConfirmed", "Confirmado")}
                   </span>

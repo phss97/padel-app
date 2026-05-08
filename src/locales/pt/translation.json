@@ -168,7 +168,7 @@
     "kickPrompt": "Selecione jogadores para remover",
     "ownerKickTransfer": "Você é o organizador. Se se remover, a organização será transferida para o jogador restante.",
     "kickConfirm": "Confirmar",
-    "noMatches": "Você não está participando de nenhuma partida"
+    "noMatches": "Nenhuma partida agendada"
   },
   "profile": {
     "memberSince": "Membro desde",

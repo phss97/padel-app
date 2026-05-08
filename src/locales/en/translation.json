@@ -168,7 +168,7 @@
     "kickPrompt": "Select players to remove",
     "ownerKickTransfer": "You are the organizer. If you remove yourself, ownership will transfer to the remaining player.",
     "kickConfirm": "Confirm",
-    "noMatches": "You are not participating in any match"
+    "noMatches": "No scheduled matches"
   },
   "profile": {
     "memberSince": "Member since",
