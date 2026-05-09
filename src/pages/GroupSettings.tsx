@@ -13,8 +13,9 @@ import {
   UserMinus,
   MapPin,
   Save,
+  Calendar,
 } from "lucide-react";
-import type { Group, Venue } from "../types";
+import type { Group, Venue, RecurringMatch, RecurrenceType } from "../types";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 
 interface MemberWithProfile {
@@ -41,6 +42,20 @@ export default function GroupSettings() {
   const [editMax2h, setEditMax2h] = useState(6);
   const [editMax3h, setEditMax3h] = useState(8);
   const [hasHydrated, setHasHydrated] = useState(false);
+
+  const [newRecurring, setNewRecurring] = useState({
+    venue_id: "",
+    day_of_week: 1,
+    start_time_template: "19:00",
+    duration_hours: 1,
+    recurrence_type: "indefinite" as RecurrenceType,
+    recurrence_count: undefined as number | undefined,
+    court_cost: undefined as number | undefined,
+  });
+  const [recurringMessage, setRecurringMessage] = useState("");
+  const [showDeleteRecurringConfirm, setShowDeleteRecurringConfirm] = useState<
+    string | null
+  >(null);
 
   const { data: group, isLoading } = useQuery<Group>({
     queryKey: ["group", id],
@@ -151,6 +166,69 @@ export default function GroupSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["group-members", id] });
+    },
+  });
+
+  const { data: recurringMatches } = useQuery<RecurringMatch[]>({
+    queryKey: ["recurring-matches", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data, error } = await supabase
+        .from("recurring_matches")
+        .select("*")
+        .eq("group_id", id);
+      if (error) throw error;
+      return (data || []) as RecurringMatch[];
+    },
+    enabled: !!id,
+  });
+
+  const createRecurring = useMutation({
+    mutationFn: async () => {
+      if (!id) throw new Error("No group ID");
+      const { error } = await supabase.from("recurring_matches").insert({
+        group_id: id,
+        venue_id: newRecurring.venue_id,
+        day_of_week: newRecurring.day_of_week,
+        start_time_template: newRecurring.start_time_template,
+        duration_hours: newRecurring.duration_hours,
+        recurrence_type: newRecurring.recurrence_type,
+        recurrence_count: newRecurring.recurrence_count,
+        court_cost: newRecurring.court_cost,
+        created_by: user?.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recurring-matches", id] });
+      setRecurringMessage(t("recurring.createSuccess"));
+      setNewRecurring({
+        venue_id: "",
+        day_of_week: 1,
+        start_time_template: "19:00",
+        duration_hours: 1,
+        recurrence_type: "indefinite",
+        recurrence_count: undefined,
+        court_cost: undefined,
+      });
+      setTimeout(() => setRecurringMessage(""), 2000);
+    },
+    onError: () => {
+      setRecurringMessage(t("recurring.createError"));
+    },
+  });
+
+  const deleteRecurring = useMutation({
+    mutationFn: async (recurringId: string) => {
+      const { error } = await supabase.rpc("delete_recurring_with_matches", {
+        p_recurring_match_id: recurringId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recurring-matches", id] });
+      queryClient.invalidateQueries({ queryKey: ["group-matches", id] });
+      setShowDeleteRecurringConfirm(null);
     },
   });
 
@@ -305,6 +383,257 @@ export default function GroupSettings() {
             </button>
             {saveMessage && (
               <p className="text-sm text-green-500 text-center">{saveMessage}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Recurring Matches */}
+        <div className="bg-surface rounded-xl border border-border p-4 space-y-4">
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-primary" />
+            {t("recurring.title")}
+          </h2>
+
+          {isAdmin ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    {t("recurring.dayOfWeek")}
+                  </label>
+                  <select
+                    value={newRecurring.day_of_week}
+                    onChange={(e) =>
+                      setNewRecurring((r) => ({
+                        ...r,
+                        day_of_week: parseInt(e.target.value),
+                      }))
+                    }
+                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value={0}>{t("recurring.sun")}</option>
+                    <option value={1}>{t("recurring.mon")}</option>
+                    <option value={2}>{t("recurring.tue")}</option>
+                    <option value={3}>{t("recurring.wed")}</option>
+                    <option value={4}>{t("recurring.thu")}</option>
+                    <option value={5}>{t("recurring.fri")}</option>
+                    <option value={6}>{t("recurring.sat")}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    {t("recurring.time")}
+                  </label>
+                  <input
+                    type="time"
+                    value={newRecurring.start_time_template}
+                    onChange={(e) =>
+                      setNewRecurring((r) => ({
+                        ...r,
+                        start_time_template: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    {t("recurring.duration")}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newRecurring.duration_hours}
+                    onChange={(e) =>
+                      setNewRecurring((r) => ({
+                        ...r,
+                        duration_hours: parseInt(e.target.value) || 1,
+                      }))
+                    }
+                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    {t("recurring.venue")}
+                  </label>
+                  <select
+                    value={newRecurring.venue_id}
+                    onChange={(e) =>
+                      setNewRecurring((r) => ({
+                        ...r,
+                        venue_id: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">{t("group.noDefaultVenue")}</option>
+                    {venues?.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    {t("recurring.cost")}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={newRecurring.court_cost || ""}
+                    onChange={(e) =>
+                      setNewRecurring((r) => ({
+                        ...r,
+                        court_cost: e.target.value
+                          ? parseFloat(e.target.value)
+                          : undefined,
+                      }))
+                    }
+                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    {t("recurring.type")}
+                  </label>
+                  <select
+                    value={newRecurring.recurrence_type}
+                    onChange={(e) =>
+                      setNewRecurring((r) => ({
+                        ...r,
+                        recurrence_type: e.target.value as RecurrenceType,
+                        recurrence_count:
+                          e.target.value === "indefinite"
+                            ? undefined
+                            : r.recurrence_count,
+                      }))
+                    }
+                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="indefinite">
+                      {t("recurring.indefinite")}
+                    </option>
+                    <option value="count">{t("recurring.count")}</option>
+                  </select>
+                </div>
+              </div>
+              {newRecurring.recurrence_type === "count" && (
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    {t("recurring.countLabel")}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newRecurring.recurrence_count || 1}
+                    onChange={(e) =>
+                      setNewRecurring((r) => ({
+                        ...r,
+                        recurrence_count: parseInt(e.target.value) || 1,
+                      }))
+                    }
+                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  />
+                </div>
+              )}
+              <button
+                onClick={() => createRecurring.mutate()}
+                disabled={createRecurring.isPending}
+                className="w-full py-2.5 bg-primary text-white rounded-xl font-medium disabled:opacity-50 hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+              >
+                <Calendar className="w-4 h-4" />
+                {createRecurring.isPending
+                  ? t("app.loading")
+                  : t("recurring.create")}
+              </button>
+              {recurringMessage && (
+                <p className="text-sm text-green-500 text-center">
+                  {recurringMessage}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          <div className="space-y-2">
+            {recurringMatches?.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                {t("recurring.noTemplates")}
+              </p>
+            ) : (
+              recurringMatches?.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center gap-3 p-3 bg-background rounded-xl"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">
+                      {[
+                        t("recurring.sun"),
+                        t("recurring.mon"),
+                        t("recurring.tue"),
+                        t("recurring.wed"),
+                        t("recurring.thu"),
+                        t("recurring.fri"),
+                        t("recurring.sat"),
+                      ][r.day_of_week]}{" "}
+                      {r.start_time_template?.slice(0, 5)} · {r.duration_hours}h{" "}
+                      {r.court_cost ? `· R$ ${Number(r.court_cost).toFixed(2)}` : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {r.recurrence_type === "indefinite"
+                        ? t("recurring.indefinite")
+                        : `${r.recurrence_count}x`}{" "}
+                      · {venues?.find((v) => v.id === r.venue_id)?.name}
+                    </p>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      onClick={() =>
+                        setShowDeleteRecurringConfirm((prev) =>
+                          prev === r.id ? null : r.id
+                        )
+                      }
+                      title={t("recurring.delete")}
+                      className="p-2 hover:bg-destructive/10 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </button>
+                  )}
+                  {showDeleteRecurringConfirm === r.id && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
+                      <div className="bg-surface rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
+                        <p className="text-sm text-destructive font-medium">
+                          {t("recurring.deleteConfirm")}
+                        </p>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => deleteRecurring.mutate(r.id)}
+                            disabled={deleteRecurring.isPending}
+                            className="flex-1 py-3 bg-destructive text-white rounded-xl font-medium disabled:opacity-50 hover:bg-destructive/90 transition-colors"
+                          >
+                            {deleteRecurring.isPending
+                              ? t("app.loading")
+                              : t("recurring.deleteMatches")}
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteRecurringConfirm(null)}
+                            className="flex-1 py-3 bg-muted text-muted-foreground rounded-xl font-medium hover:bg-muted/80 transition-colors"
+                          >
+                            {t("app.cancel")}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))
             )}
           </div>
         </div>
