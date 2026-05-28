@@ -22,6 +22,7 @@ interface MemberWithProfile {
   id: string;
   user_id: string;
   role: string;
+  is_fixed_player?: boolean;
   joined_at: string;
   profile: { name: string; id: string };
 }
@@ -96,6 +97,25 @@ export default function GroupSettings() {
       return (data || []) as MemberWithProfile[];
     },
     enabled: !!id,
+  });
+
+  const toggleFixedPlayer = useMutation({
+    mutationFn: async ({
+      memberId,
+      isFixed,
+    }: {
+      memberId: string;
+      isFixed: boolean;
+    }) => {
+      const { error } = await supabase
+        .from("group_members")
+        .update({ is_fixed_player: isFixed })
+        .eq("id", memberId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["group-members", id] });
+    },
   });
 
   useEffect(() => {
@@ -661,10 +681,36 @@ export default function GroupSettings() {
                     {member.role === "admin"
                       ? t("group.admin", "Admin")
                       : t("group.member", "Membro")}
+                    {member.is_fixed_player && (
+                      <span className="ml-1 text-primary">• {t("group.fixedPlayer", "Jogador fixo")}</span>
+                    )}
                   </p>
                 </div>
                 {isAdmin && member.user_id !== user?.id && (
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={() =>
+                        toggleFixedPlayer.mutate({
+                          memberId: member.id,
+                          isFixed: !member.is_fixed_player,
+                        })
+                      }
+                      disabled={toggleFixedPlayer.isPending}
+                      className="p-2 hover:bg-muted/80 rounded-lg transition-colors"
+                      title={
+                        member.is_fixed_player
+                          ? t("group.unmarkFixed", "Desmarcar como fixo")
+                          : t("group.markFixed", "Marcar como fixo")
+                      }
+                    >
+                      <Pin
+                        className={`w-4 h-4 ${
+                          member.is_fixed_player
+                            ? "text-primary fill-primary"
+                            : "text-muted-foreground"
+                        }`}
+                      />
+                    </button>
                     <button
                       onClick={() =>
                         updateMemberRole.mutate({

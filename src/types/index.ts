@@ -37,6 +37,7 @@ export interface GroupMember {
   group_id: string;
   user_id: string;
   role: MemberRole;
+  is_fixed_player?: boolean;
   joined_at: string;
 }
 
