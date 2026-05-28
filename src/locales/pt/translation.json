@@ -186,5 +186,31 @@
     "themeLight": "Claro",
     "themeDark": "Escuro",
     "themeSystem": "Auto"
+  },
+  "recurring": {
+    "title": "Partidas Recorrentes",
+    "dayOfWeek": "Dia da semana",
+    "time": "Horário",
+    "duration": "Duração (h)",
+    "venue": "Quadra",
+    "cost": "Custo",
+    "type": "Tipo",
+    "indefinite": "Indefinido",
+    "count": "Quantidade",
+    "countLabel": "Quantidade de semanas",
+    "create": "Criar recorrente",
+    "createSuccess": "Partida recorrente criada!",
+    "createError": "Erro ao criar partida recorrente",
+    "delete": "Excluir recorrente",
+    "deleteMatches": "Excluir partidas futuras",
+    "deleteConfirm": "Deseja excluir o template e todas as partidas geradas?",
+    "noTemplates": "Nenhum template recorrente",
+    "sun": "Dom",
+    "mon": "Seg",
+    "tue": "Ter",
+    "wed": "Qua",
+    "thu": "Qui",
+    "fri": "Sex",
+    "sat": "Sáb"
   }
 }

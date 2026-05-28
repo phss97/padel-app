@@ -2,6 +2,7 @@ export type MemberRole = 'admin' | 'member';
 export type VenueType = 'public' | 'private';
 export type MatchStatus = 'scheduled' | 'cancelled' | 'completed';
 export type PlayerStatus = 'confirmed' | 'waitlist' | 'cancelled';
+export type RecurrenceType = 'indefinite' | 'count';
 
 export interface Profile {
   id: string;
@@ -80,4 +81,19 @@ export interface MatchPayment {
   paid_at?: string;
   pix_key_used?: string;
   created_at: string;
+}
+
+export interface RecurringMatch {
+  id: string;
+  group_id: string;
+  venue_id: string;
+  day_of_week: number;
+  start_time_template: string;
+  duration_hours: number;
+  recurrence_type: RecurrenceType;
+  recurrence_count?: number;
+  court_cost?: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }

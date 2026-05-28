@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -46,6 +46,12 @@ export default function GroupDetail() {
   const [inviteError, setInviteError] = useState("");
   const { copied: copiedPermanent, copy: copyPermanent } = useClipboard();
   const { copied: copiedTemporary, copy: copyTemporary } = useClipboard();
+
+  useEffect(() => {
+    if (id) {
+      supabase.rpc("generate_recurring_for_group", { p_group_id: id });
+    }
+  }, [id]);
 
   const { data: group } = useQuery<Group>({
     queryKey: ["group", id],

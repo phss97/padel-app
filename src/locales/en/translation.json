@@ -186,5 +186,31 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "Auto"
+  },
+  "recurring": {
+    "title": "Recurring Matches",
+    "dayOfWeek": "Day of week",
+    "time": "Time",
+    "duration": "Duration (h)",
+    "venue": "Venue",
+    "cost": "Cost",
+    "type": "Type",
+    "indefinite": "Indefinite",
+    "count": "Count",
+    "countLabel": "Number of weeks",
+    "create": "Create recurring",
+    "createSuccess": "Recurring match created!",
+    "createError": "Error creating recurring match",
+    "delete": "Delete recurring",
+    "deleteMatches": "Delete future matches",
+    "deleteConfirm": "Delete template and all generated matches?",
+    "noTemplates": "No recurring templates",
+    "sun": "Sun",
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat"
   }
 }
